@@ -654,6 +654,9 @@ To query an external API, you can use the [standard Ruby library `net/http`](htt
 
 **Note that I check the return code before continuing**, as anything other than 200 (in our case) is an error. It is important not to assume that a call to an external API will succeed. Caveat: the response code is actually a String, not an integer.
 
+Also note that I raise an exception if I can't fetch the data. *You don't need to worry about catching this exception* because there is nothing you can do to solve this problem. Such unaught exceptions will trigger an alert and abort the processing of the
+current message.
+
 ```ruby
 require 'net/http'
  # snip ...
@@ -674,6 +677,9 @@ require 'net/http'
     end
   end
 ```
+
+(Side note: in this example, we could decide not to raise an exception but just log the failure and use an outdated cache. It is the responsibility of the agent designer to decide how to handle such cases. However, *do not silently ignore errors*, at least use {Sdk_api_XX_DOWNCASED_CLEAN_PROJECT_NAME::SDK::API.log SDK.API.log} to log the failure (`SDK.API.log.error`))
+
 
 ### Parse and store the data in Redis ###
 
