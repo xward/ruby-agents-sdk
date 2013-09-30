@@ -935,7 +935,7 @@ module Initial_agent_fml_agent
     # Check how many FMLs the device want
     number_of_fmls = request.number
 
-    # Get this namy FMLs
+    # Get this many FMLs
     # Note that we don't care about the UpdateFailed exception that could be raised
     cache = Cache::FmlCache.new
     fmls = cache.get(number_of_fmls)
