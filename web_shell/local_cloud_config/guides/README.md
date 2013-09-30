@@ -963,7 +963,19 @@ Congratulations! You just wrote your first agent for the MDI cloud!
 
 # Further reading #
 
-To be continued...
+The documentation includes other guides that cover some topics in more detail:
+
+* the {file:guides/sdk_api.md SDK API} guide describes the most important API of the SDK (logs, Redis...)
+* the {file:guides/guidelines.md guidelines} describes some rules your agent must follow
+* the {file:guides/protogen.md Protogen guide} is the comprehensive reference for everything related to Protogen
+* the {file:guides/tests.md tests guide} describes the testing framework of the SDK
+
+You can build upon this example if you want further training. Interesting ideas for our agent may be:
+
+* instead of solely the latests FMLs, fetch the latest FMLS plus random FMLs (to have more FMLs in the cache)
+* add more languages (for instance, for French, use http://www.viedemerde.fr/)
+* expand the protocol so the device can explicitly ask for data from a given website
+* ...
 
 # Device-side #
 
