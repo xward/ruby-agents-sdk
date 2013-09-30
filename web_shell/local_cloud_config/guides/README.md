@@ -696,7 +696,7 @@ class FmlCache
       fmls = parse_html(get_response_body)
 
       @redis.set "last_update", Time.now.to_i
-      @redis.set "max_index", fmls.size
+      @redis.set "max_index", fmls.size - 1
       @redis.expire "max_index", (@validity_period * 60 * 60).to_i
 
       # We assume we get the same number of FMLs with each request
@@ -761,7 +761,7 @@ module Cache
       fmls = parse_html(get_response_body)
 
       @redis.set "last_update", Time.now.to_i
-      @redis.set "max_index", fmls.size
+      @redis.set "max_index", fmls.size - 1
       @redis.expire "max_index", (@validity_period * 60 * 60).to_i
 
       # We assume we get the same number of FMLs with each request
