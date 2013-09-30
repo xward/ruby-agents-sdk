@@ -4,6 +4,10 @@
 
 # Frequently asked questions #
 
+## Where should I start if I am new to the server SDK? ##
+
+Try the {file:guides/README.md Getting started guide}.
+
 ## Code snippets ##
 
 ### How do I create a new `Message` (for injecting it in the cloud for instance)? ###
@@ -49,6 +53,6 @@ For each of these items there is a corresponding box in the left column of the "
 
 ### What are all these warnings about Protogen? Should I worry about them? ###
 
-As of now, {guides/protogen.md Protogen} tries to encode/decode every outgoing/incoming message. If it fails, the SDK logs a warning and go on handling the message as a non-Protogen one.
+As of now, {file:/guides/protogen.md Protogen} tries to encode/decode every outgoing/incoming message. If it fails, the SDK logs a warning and go on handling the message as a non-Protogen one.
 
 If you are not using Protogen, then you can ignore these messages. However, if you see these messages for a Protogen message, then something is going wrong.

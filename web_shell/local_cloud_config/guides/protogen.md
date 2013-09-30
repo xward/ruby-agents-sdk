@@ -20,7 +20,7 @@ While its usage is not mandatory, it is simple to use and should help you focus 
 
 ## Basic usage ##
 
-Your `config/protogen.json` file contains your protocol description using the [JSON](http://en.wikipedia.org/wiki/JSON#JSON_Schema) format. This file declares the list of Protogen messages and some metadata. For instance, a very simple protocol file could be:
+Your `config/protogen.json` file contains your protocol description using the [JSON](http://en.wikipedia.org/wiki/JSON) format. This file declares the list of Protogen messages and some metadata. For instance, a very simple protocol file could be:
 
 ```javascript
 {
@@ -222,7 +222,7 @@ Example:
 * "\_server\_callback" (required string for messages received by the server :"\_way" set to "toServer" or "both"): Name of the callback called when a server receive a new message
 * "\_device\_callback" (required string if message received by the device :"\_way" set to "toDevice" or "both"): Name of the callback to implement when a device receive a new message
 * "\_description" (optional string): Describes the purpose of this message (used when generating the protocol documentation).
-* "\_timeout\_calls" and "\_timeout" (optional): see the "Timeout" section.
+* "\_timeout\_calls" and "\_timeout" (optional): not implemented yet
 
 
 ### Attributes ###

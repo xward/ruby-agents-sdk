@@ -284,7 +284,7 @@ module Sdk_api_XX_DOWNCASED_CLEAN_PROJECT_NAME
     # @api public
     # This class handles all cloud to itself communication
     # @note You don't have to instantiate this class yourself.
-    #    Use the {Sdk_api_XX_DOWNCASED_CLEAN_PROJECT_NAME::SDK::API.cloudGate SDK.API.cloudGate} object which is already configured for your agent.
+    #    Use the {Sdk_api_XX_DOWNCASED_CLEAN_PROJECT_NAME::SDK::API.cloud_gate SDK.API.cloud_gate} object which is already configured for your agent.
     class CloudGate
 
       include ProtogenHelper
