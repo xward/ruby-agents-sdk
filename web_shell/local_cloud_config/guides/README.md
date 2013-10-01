@@ -33,6 +33,8 @@ As we expect this application to be highly successful, we can not afford to quer
 
 When a user click on the button, the application will query our agent for a list of three FML facts. Our agent will retrieve three random facts from its cache and send them to the agent. The agent will update its cache every day, so we will only make one request to FML per day.
 
+We will not implement the graphical interface of the device component to make this guide more concise. However, the demo application that comes with the SDK does include the graphical interface.
+
 # Getting started #
 
 First, you need your MDI virtual machine (VM) up and running. Because you are currently reading this page, I assume it is already done. Remember that you have a `README` file in the root folder of your VM should you ever forget how to start it.
@@ -1008,4 +1010,127 @@ You can build upon this example if you want further training. Interesting ideas 
 
 # Device-side #
 
-To be continued...
+**WARNING: all device-related documentation included in this agents SDK VM documentation might not be up to date. Please refer to your device documentation instead.**
+
+As said in the introduction, in this guide we will not write the full graphical interface of the device component. However, I'll illustrate how you can send and receive Protogen messages.
+
+First, you need to connect your device to your PC and run the console commands to configure your device so it communicates with the SDK VM. The instructions can be found in your device documentation, or {file:guides/device.md here}.
+
+Here, we will write a small component that just send a query to our agent to get FMLs then print these FMLs in the logs.
+
+In the Morpheus SDK, create a new projet (File -> New -> MDI501 project). Set the project name to `FmlExample` and the package name to `com.test.fmlexample` (non-graphical component).
+
+In the JCPN file of your newly created project, you need to add the required interfaces `Debug`, `MessageGate` and `BinaryGate` (double-click on `fmlexample.jcpn` on the Package Explorer, then click on `Required Interfaces` then `Add`, search and add the interface.).
+
+Also add a new `Initial.java` to your project (click on `Initials` -> `Add` -> check the "singleton" box -> `Create`.)
+
+Do not forget to save your JCPN before continuing (File -> Save).
+
+We'll send messages to the server in the `Initial.java` file, method `start()` (this is not the right way to do this in a real application). To do this, we need to instanciate a `MessageSender` (defined by Protogen). We then create a `MDIMessages.FmlRequest`, set its attributes, and send it through the `MessageSender`.
+
+We need to pass to the constructor of the `MessageSender` an implementation of the `IMessageController` interface (defined by Protogen) that implements the callbacks we defined in the protocol file.
+
+**Initial.java**
+
+```java
+
+package com.test.fmlexample;
+
+import java.io.ByteArrayOutputStream;
+
+import org.msgpack.MessagePack;
+import org.msgpack.packer.Packer;
+
+import com.mdi.tools.dbg.Debug;
+import com.test.fmlexample.Codec.UnknownMessage;
+import com.test.fmlexample.MDIMessages.FmlRequest;
+
+
+public class Initial implements com.mdi.tools.cpn.Initial {
+
+  private static Initial _instance = new Initial();
+
+  public void shutdown() {
+    // TODO Auto-generated method stub
+
+  }
+
+  public void start() {
+    Debug dbg = Component.getInstance().getDebug();
+    dbg.init(0); // initialize debug to see all log
+    dbg.print("Starting component FmlExample");
+
+    Dispatcher.MessageSender _msgsender = new Dispatcher.MessageSender(
+        "com.mdi.services.fml_agent", // name of the channel
+        new CustomMessageController(), // The implementation of a IMessageController interface
+        Component.getInstance().getMessageGate(), // The MessageGate
+        Component.getInstance().getBinaryGate(), // The BinaryGate
+        Component.getInstance().getDebug()); // The Debug tool
+
+    try {
+
+      // Waiting for the dynamic channel to be configured (no point in sending messages too soon).
+      Component.getInstance().getDebug().warn("protogen demo 30s sleep");
+      Thread.sleep(30000);
+
+      // Creating and sending a FmlRequest to the server
+      FmlRequest request = new MDIMessages.FmlRequest();
+      while(true) {
+        request.number = 3;
+        request.preferred_language = "english";
+        dbg.print("request protogen created");
+        _msgsender.send_FmlRequestToServer(request);
+        dbg.print("question sent to the message sender");
+        Thread.sleep(10000);
+      }
+
+    } catch (InterruptedException e) {
+      // Thread exception... To be removed if an other solution is found
+      e.printStackTrace();
+    } catch (UnknownMessage e) {
+      // If the message given to the MessageSender is not valid
+      e.printStackTrace();
+    }
+
+  }
+
+  private Initial() {
+    // TODO Auto-generated method stub
+  }
+
+  static Initial getInstance() {
+    return _instance;
+  }
+
+}
+```
+
+**CustomMessageController.java**
+
+```ruby
+package com.test.fmlexample;
+
+import com.mdi.tools.dbg.Debug;
+import com.test.fmlexample.IMessageController;
+import com.test.fmlexample.MDIMessages.FmlFact;
+import com.test.fmlexample.MDIMessages.FmlList;
+
+public class CustomMessageController implements IMessageController {
+
+  public void fmlListCallback(FmlList fmlList) {
+    Debug dbg = Component.getInstance().getDebug();
+    dbg.init(0); // initialize debug to see all log
+    dbg.print("Received a FmlList!");
+
+    // print the received FMLs
+    dbg.print("Last updated: " + fmlList.last_cache_update);
+    for(FmlFact fml: fmlList.facts) {
+      dbg.print(fml.content);
+    }
+
+  }
+
+}
+```
+
+You can then create a device package and upload it to the device. You will see in the device logs the received FMLs.
