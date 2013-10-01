@@ -34,14 +34,21 @@ end
 
 `execute_order` is a command defined by the SDK and will be the only accepted command.
 
-The in our `initial.rb` we define the `refresh` callback:
+Then in our `initial.rb` we define the `refresh` callback:
 
 ``` ruby
 module Initial_my_agent
 
-  # ...
+  def new_order(order)
+    if order.code == "refresh"
+      refresh(order.params)
+    else
+      raise "Unknown order: #{order.to_hash.inspect}"
+    end
+  end
 
-  def refresh
+
+  def refresh(params)
     # do stuff
   end
 
