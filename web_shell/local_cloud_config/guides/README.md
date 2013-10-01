@@ -961,6 +961,35 @@ Reboot the server and run the tests. They should all pass.
 
 Congratulations! You just wrote your first agent for the MDI cloud!
 
+# Scheduled orders #
+
+To complete our agent we will force it to update its cache every day at 3 am.
+Doing so is easy:
+
+* Replace your `config/schedule.rb` with the following content:
+
+```ruby
+every 1.day, :at => '3:00 am' do
+  execute_order "update_cache"
+end
+```
+
+* Update your `initial.rb` `new_order` method:
+
+```ruby
+  def new_order(order)
+    if order.code == "update_cache"
+      cache = Cache::FmlCache.new.update
+    else
+      raise "Unknown order: #{order.to_hash.inspect}"
+    end
+  end
+```
+
+* Reboot the agents server. In your VM, the scheduled order will not be executed automatically (Anyway, I think you are not sitting in front of your computer at 3 am, coding your agent). To test it, click the `Perform: 'update_cache'` that appeared on the [SDK Agents](http://0.0.0.0:5000/projects) page.
+
+* Check the logs, the scheduled order should have been executed successfully.
+
 # Further reading #
 
 The documentation includes other guides that cover some topics in more detail:
