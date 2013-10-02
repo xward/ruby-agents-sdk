@@ -6,6 +6,7 @@
 require 'fileutils'
 require 'yaml'
 require 'securerandom'
+require 'bundler'
 
 
 module AgentsGenerator
@@ -55,64 +56,68 @@ module AgentsGenerator
 
     agents_to_run = get_run_agents
 
-    # protogen
-    agents_to_run.each do |agent|
+    Bundler.with_clean_env do
 
-      PUNK.start('a')
+      # protogen
+      agents_to_run.each do |agent|
 
-      # Protogen will handle missing conf file
+        PUNK.start('a')
 
-      FileUtils.mkdir_p("#{workspace_path}/#{agent}/doc/protogen")
+        # Protogen will handle missing conf file
 
-      # generate compil conf
-      compil_opt = {
-        "plugins" => ["mdi_sdk_vm_server_ruby"],
-        "agent_name" => "#{agent}",
-        "server_output_directory" => "#{generated_rb_path}/protogen_#{agent}"
-      }
-      CC.logger.info(">>> Generating Protogen for #{agent} agent with config :\n #{compil_opt}")
-      File.open('/tmp/protogen_conf.json', 'w') { |file| file.write(compil_opt.to_json)}
+        FileUtils.mkdir_p("#{workspace_path}/#{agent}/doc/protogen")
 
-      # create dir for ruby side code
-      FileUtils.mkdir_p(compil_opt['server_output_directory'])
+        # generate compil conf
+        compil_opt = {
+          "plugins" => ["mdi_sdk_vm_server_ruby"],
+          "agent_name" => "#{agent}",
+          "server_output_directory" => "#{generated_rb_path}/protogen_#{agent}"
+        }
+        CC.logger.info(">>> Generating Protogen for #{agent} agent with config :\n #{compil_opt}")
+        File.open('/tmp/protogen_conf.json', 'w') { |file| file.write(compil_opt.to_json)}
 
-      # call protogen
-      command = "cd #{protogen_bin_path}; bundle install"
-      output = `#{command}`
-      CC.logger.debug("protogen bundle install:\n #{output}\n\n")
+        # create dir for ruby side code
+        FileUtils.mkdir_p(compil_opt['server_output_directory'])
 
-      command = "cd #{protogen_bin_path}; bundle exec ruby protogen.rb #{workspace_path}/#{agent}/config/protogen.json /tmp/protogen_conf.json"
-      CC.logger.debug "running command #{command} :"
-      output = `#{command} 2>&1` #redirect STDERR to STDOUT so output actually contain errors
+        # call protogen
+        command = "cd #{protogen_bin_path}; bundle install"
+        output = `#{command}`
+        CC.logger.debug("protogen bundle install:\n #{output}\n\n")
 
-      exit_code = $?.clone.exitstatus
-      CC.logger.info("Protogen exit code: #{exit_code}")
+        command = "cd #{protogen_bin_path}; bundle exec ruby protogen.rb #{workspace_path}/#{agent}/config/protogen.json /tmp/protogen_conf.json"
+        CC.logger.debug "running command #{command} :"
+        output = `#{command} 2>&1` #redirect STDERR to STDOUT so output actually contain errors
 
-      CC.logger.debug(" *** Protogen output ***\n #{output}\n\n")
+        exit_code = $?.clone.exitstatus
+        CC.logger.info("Protogen exit code: #{exit_code}")
 
-      if exit_code != 0 # non-zero exit code means error. We abort on all errors except code 4 and 5
-        # see protocol_generator/error.rb for the signification of error codes
-        CC.logger.warn("Protogen returned non-zero status code (non-zero status code means an error occured).")
-        if exit_code == 4  # protocol file not found
-          CC.logger.warn("Protocol file not found for #{agent} at 'config/protogen.json', Protogen will not be available for this agent.")
-        elsif exit_code == 5 # protocol file empty
-          CC.logger.warn("Protocol file empty for #{agent} at 'config/protogen.json', Protogen will not be available for this agent.")
-        else
-          CC.logger.error("Protogen fatal error, see Protogen output for details.")
-          PUNK.end('a','ko','',"SERVER Protogen generation for agent #{agent} failed")
-          raise 'Protogen generation failed.'
+        CC.logger.debug(" *** Protogen output ***\n #{output}\n\n")
+
+        if exit_code != 0 # non-zero exit code means error. We abort on all errors except code 4 and 5
+          # see protocol_generator/error.rb for the signification of error codes
+          CC.logger.warn("Protogen returned non-zero status code (non-zero status code means an error occured).")
+          if exit_code == 4  # protocol file not found
+            CC.logger.warn("Protocol file not found for #{agent} at 'config/protogen.json', Protogen will not be available for this agent.")
+          elsif exit_code == 5 # protocol file empty
+            CC.logger.warn("Protocol file empty for #{agent} at 'config/protogen.json', Protogen will not be available for this agent.")
+          else
+            CC.logger.error("Protogen fatal error, see Protogen output for details.")
+            PUNK.end('a','ko','',"SERVER Protogen generation for agent #{agent} failed")
+            raise 'Protogen generation failed.'
+          end
         end
+
+        CC.logger.info("Protogen generation for #{agent} done.")
+        PUNK.end('a','ok','',"SERVER generated Protogen for agent #{agent}")
+
+        FileUtils.cp_r(Dir["#{source_path}/cloud_agents_generated/protogen_#{agent}/doc/*"],"#{workspace_path}/#{agent}/doc/protogen/")
+
+        CC.logger.info("Protogen doc deployed \n")
       end
 
-      CC.logger.info("Protogen generation for #{agent} done.")
-      PUNK.end('a','ok','',"SERVER generated Protogen for agent #{agent}")
+    end # Bundler.with_clean_env
 
-      FileUtils.cp_r(Dir["#{source_path}/cloud_agents_generated/protogen_#{agent}/doc/*"],"#{workspace_path}/#{agent}/doc/protogen/")
-
-      CC.logger.info("Protogen doc deployed \n")
-    end
-
-  end
+  end # def generate_agents_protogen()
 
   def generate_agents()
     @AgentsGenerator_rapport_generation = ""
