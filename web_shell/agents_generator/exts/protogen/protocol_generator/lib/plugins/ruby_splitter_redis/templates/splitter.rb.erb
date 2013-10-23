@@ -1,18 +1,16 @@
 require 'digest/sha1'
 
-module Protogen_<%= Env['agent_name'] %>
+module Protogen_<%= protocol_set.config.get(:ruby, :agent_name) %>
 
   module Protogen
 
   # The module provides APIs to split messages when they are
   # too big (to avoid congestion in the mdi communication servers).
-  # @protogen_version <%= ::ProtocolGenerator.version %>
-  # @protocol_version <%= Env['protocol_version'] %>
+  # @protogen_version <%= protocol_set.config.get(:global, :pg_version) %>
   # @api private
   module Splitter
 
-    PROTOCOL_VERSION = <%= Env['protocol_version'] %>
-    PG_VERSION = "<%= ::ProtocolGenerator.version %>"
+    PG_VERSION = "<%= protocol_set.config.get(:global, :pg_version) %>"
 
     # Init the redis connection
     # @param [Redis] redis initialized redis connection
@@ -51,7 +49,7 @@ module Protogen_<%= Env['agent_name'] %>
       message = message_parts.keys.map{|i| i.to_i}.sort.inject(""){
         |acc,part_i| acc << message_parts[part_i.to_s]
       }
-      raise 'Message corrupted' unless Digest::SHA1.base64digest(message) == sha1_hash
+      raise Error::CorruptedMessage.new("Assembled message SHA1 does not correspond to expected SHA1.") unless Digest::SHA1.base64digest(message) == sha1_hash
       message
     end
 

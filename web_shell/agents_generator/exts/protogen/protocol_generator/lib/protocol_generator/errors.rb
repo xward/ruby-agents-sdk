@@ -12,7 +12,8 @@ module ProtocolGenerator
       protocol_definition_error: 7,
       configuration_error: 8,
       plugin_error: 9,
-      sequence_error: 10
+      sequence_error: 10,
+      cookie_error: 11
     }.freeze
 
     # Generic Protogen error, all other Protogen errors must subclass this
@@ -83,6 +84,16 @@ module ProtocolGenerator
         super(*args)
         @exit_code = ERROR_CODE[:sequence_error]
       end
+    end
+
+    class CookieError < ProtocolDefinitionError
+      def initialize(*args)
+        super(*args)
+        @exit_code = ERROR_CODE[:cookie_error]
+      end
+    end
+
+    class ValidationError < ProtogenError
     end
 
   end

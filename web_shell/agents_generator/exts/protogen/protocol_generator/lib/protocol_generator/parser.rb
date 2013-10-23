@@ -1,407 +1,324 @@
+require_relative 'models/field'
+require_relative 'models/message'
+require_relative 'models/sequence'
+require_relative 'models/shot'
+require_relative 'models/sequence'
+require_relative 'models/protocol'
+require_relative 'models/protocol_set'
+require_relative 'models/config'
+require_relative 'models/cookie'
+require_relative 'schema.rb'
+
 module ProtocolGenerator
 
-  BASIC_TYPES = ['int', 'nil', 'bool', 'float', 'bytes', 'string'].freeze
-  MSGPACK2JAVA = {
-    'int' => 'int',
-    'nil' => 'null',
-    'bool' => 'boolean',
-    'float' => 'float',
-    'bytes' => 'byte[]',
-    'string' => 'String',
-    'msgpack' => 'Value'
-  }.freeze
-
-  MSGPACK2RUBY = {
-    'int' => 'Fixnum',
-    'nil' => 'NilClass',
-    'bool' => 'bool', # No bool in ruby... TODO, find a workaroud
-    'float' => 'Float',
-    'bytes' => 'bytes',
-    'string' => 'String',
-    'msgpack' => 'Object'
-
-  }.freeze
-
-  SERVER_CONF_SCHEMA = {
-    "type" => "object",
-    'required' => true,
-    "properties" => {
-      "plugins" => {'type' => 'array', 'required' => true},
-      "agent_name" => {'type' => 'string', 'required' => true},
-      "message_size_limit" => {'type' => 'int', 'required' => false},
-      "message_part_size" => {'type' => 'int', 'required' => false}
-    }
-  }.freeze
-
-  DEVICE_CONF_SCHEMA = {
-    "type" => "object",
-    'required' => true,
-    "properties" => {
-      "plugins" => {'type' => 'array', 'required' => true},
-      "java_package" => {'type' => 'string', 'required' => true},
-      "mdi_framework_jar" => {'type' => 'string', 'required' => false},
-      "keep_java_source" => {'type' => 'bool', 'required' => false},
-      "keep_java_jar" => {'type' => 'bool', 'required' => false},
-      "agent_name" => {'type' => 'string', 'required' => true},
-      "message_size_limit" => {'type' => 'int', 'required' => false},
-      "message_part_size" => {'type' => 'int', 'required' => false}
-    }
-  }.freeze
-
-  MSGPACK_CONF_SCHEMA = {}.freeze
-
-  PROTOBUF_CONF_SCHEMA = {
-    "type" => "object",
-    'required' => true,
-    "properties" => {
-      "proto_file_name" => {'type' => 'string', 'required' => true},
-      "protobuf_jar" => {'type' => 'string', 'required' => true},
-      "package_name" => {'type' => 'string', 'required' => true}
-    }
-  }.freeze
-
-  FIELD_SCHEMA = {
-    'type' => 'object',
-    'properties' => {
-      'type' => {'type'=>'string', 'required' => true},
-      'modifier' => {'type'=>'string', 'enum' => ['required', 'optional'], 'required' => true},
-      'array' => {'type'=>'bool', 'required' => false},
-      'docstring' => {'type'=>'string', 'required' => false}
-    }
-  }.freeze
-
-  MESSAGES_SCHEMA = {
-    'type' => 'object',
-    'required' => true,
-    'properties' => {},
-    "patternProperties" => {
-      "^[A-Z]" => {
-        'type' => 'object',
-        'properties' => {
-          '_description' => {'type' => 'string', 'required' => false},
-          '_way' => {'type' => 'string', 'enum' => ['toServer', 'toDevice', 'both', 'none'], 'required' => true},
-          '_server_callback' => {'type' => 'string', 'required' => false},
-          '_device_callback' => { 'type' => 'string', 'required' => false},
-          '_timeout_calls' => {'type' => 'Array', 'required' => false}, # ["send", "ack"]
-          '_timeouts' => {
-            'type' => 'object',
-            'required' => false,
-            'properties' => {
-              'send' => {'type' => 'int', 'required' => false},
-            }
-          }
-        },
-        "patternProperties" => {
-          "^[a-z]" => FIELD_SCHEMA
-        }
-      }
-    }
-  }.freeze
-
-  COOKIES_SCHEMA = {
-    'type' => 'object',
-    'required' => true,
-    'properties' => {},
-    "patternProperties" => {
-      "^[A-Z]" => {
-        'type' => 'object',
-        'properties' => {
-          "_send_with" => { 'type' => 'Array' },
-          "_secure" => { 'type' => 'string', 'enum' => ['high', 'low', 'none']},
-          "_validity_time" => {'type' => 'int', 'required' => false}
-          },
-        "patternProperties" => {
-          "^[a-z]" => FIELD_SCHEMA
-        }
-      }
-    }
-  }.freeze
-
-  SHOTS_SCHEMA = {
-    "type" => "object",
-    "required" => true,
-    "patternProperties" => {
-      "^[A-Z]" => {
-        "type" => "object",
-        "properties" => {
-          "way" => {"type" => "string", "required" => true, "enum" => ['toDevice', 'toServer']},
-          "message_type" => {"type" => "string", "required" => true},
-          "next_shots" => {"type" => "Array", "items" => { "type" => "string"}}
-        }
-      }
-    }
-  }.freeze
-
-  SEQUENCES_SCHEMA = {
-    "type" => "object",
-    "required" => true,
-    "patternProperties" => {
-      "^[A-Z]" => {
-        "type" => "object",
-        "properties" => {
-          "first_shot" => {"type" => "string", "required" => true},
-          "shots" => SHOTS_SCHEMA
-        }
-      }
-    }
-  }.freeze
-
-
-  GENERAL_SCHEMA = {
-    "type" => "object",
-    "properties" => {
-      "messages" => MESSAGES_SCHEMA,
-      "cookies" => COOKIES_SCHEMA,
-      "sequences" => SEQUENCES_SCHEMA,
-      "protocol_version" => {"type" => "int", "required" => true},
-      "protogen_version" => {"type" => "int", "required" => true, "enum" => [1]}
-    }
-  }.freeze
-
-
   class Parser
-    # This function will ensure that the json input document was correctly formed
 
-    def self.run
-      puts "Reading configuration and setting up the parser"
-      default_conf_file = File.join('config', 'config.json')
-      unless File.exist?(default_conf_file)
-        raise Error::ConfigurationFileError.new("Can not find the default configuration file at #{default_conf_file}")
+    # @param [Hash<String, Object>] params a hash with the following keys:
+    #     * temp_output_directory: a temporary output directory to be used by Protogen.
+    #     * default_config_path: path to the default protogen configuration file
+    #     * config_path: path to the user configuration file
+    #     * protocol_path: an array of protocol configuration file
+    def self.run(params)
+      puts "Reading configuration..."
+      hash_config = read_config(params['default_config_path'], params['config_path'])
+
+      protocol_set = Models::ProtocolSet.new
+      protocol_set.config do
+        set :java, :package_name, hash_config['java_package']
+        set :java, :output_directory, hash_config['device_output_directory']
+        set :ruby, :agent_name, hash_config['agent_name']
+        set :ruby, :user_callbacks_directory, hash_config['user_callbacks']
+        set :global, :max_message_size, hash_config['message_size_limit']
+        set :global, :message_part_size, hash_config['message_part_size']
+        set :java, :output_path, hash_config['device_output_directory']
+        set :ruby, :output_path, hash_config['server_output_directory']
+        set :java, :temp_output_path, File.join(params['temp_output_directory'], "device")
+        set :ruby, :temp_output_path, File.join(params['temp_output_directory'], "server")
+        set :java, :mdi_jar_path, hash_config['mdi_framework_jar']
+        set :java, :keep_jar, hash_config['keep_java_jar']
+        set :java, :keep_source, hash_config['keep_java_source']
+        set :global, :plugins, hash_config['plugins']
+        set :global, :pg_version, hash_config['pg_version']
+      end
+
+      params['protocol_path'].each do |protocol_path|
+        protocol_set << declare_protocol(protocol_path)
+      end
+
+      protocol_set.freeze
+    end
+
+    def self.declare_protocol(protocol_path)
+
+      protocol = Models::Protocol.new
+
+      puts "Reading the protocol definition file at #{protocol_path}..."
+      input = read_protocol_file(protocol_path)
+
+      protocol.protogen_version = input["protogen_version"]
+      protocol.protocol_version = input["protocol_version"]
+      protocol.name = input["name"]
+      protocol.add_callback(:generic_error_callback, input["generic_error_callback"]) if input['generic_error_callback']
+
+      # Messages
+      puts "Building messages..."
+      declared_types = []
+      input['messages'].each do |msg_name, msg_def|
+        declare_message(msg_name, protocol, input['messages']) # recursive method, see its definition
+      end
+
+      # Cookies
+      puts "Building cookies..."
+      use_cookies = input.has_key?('cookies') && !input['cookies'].empty?
+      if use_cookies
+        input['cookies'].each do |cookie_name, cookie_def|
+          puts "Adding cookie #{cookie_name}..."
+          if cookie_def['_secure'].nil?
+            secure = nil
+          else
+            secure = cookie_def['_secure'].to_sym
+          end
+          cookie = Models::Cookie.new({docstring: cookie_def['description'], name: cookie_name, validity_period: cookie_def['_validity_time'], security_level: secure})
+          send_with = cookie_def['_send_with'].each do |msg_name|
+            msg = protocol.get_message(msg_name)
+            if msg == nil
+              raise Error::CookieError.new("In cookie #{cookie_name}, '_send_with' message type set to #{msg_name} which is an unknown message type.")
+            end
+            cookie.send_with << msg
+          end
+          fields = cookie_def.select { |key, value| key.match(/^[a-z]/) }
+          if fields.size > 10
+            raise Error::CookieError.new("A cookie can not have more than 10 fields.")
+          end
+          fields.each do |field_name, field_def|
+            field = Models::Field.new(type: field_def['type'], required: field_def['modifier'] == 'required', name: field_name, docstring: field_def['docstring'])
+            cookie.add_field(field)
+          end
+          protocol.add_cookie(cookie)
+        end
+      end # if use_cookies
+
+      # Sequences
+      puts "Building sequences..."
+      input['sequences'].each do |seq_name, seq_def|
+        puts "Declaring sequence #{seq_name}"
+        seq = Models::Sequence.new({name: seq_name, aborted_callback: seq_def['aborted_callback']})
+        declare_shot(seq_def['first_shot'], seq, seq_def['shots'], protocol)
+        seq.first_shot = seq.shot(:name, seq_def['first_shot'])
+        protocol.add_sequence(seq)
+      end
+
+      protocol.compute_ids
+
+      puts "Final protocol validation..."
+      validation = protocol.validate
+      if validation.size > 0
+        puts "Validation errors"
+        puts validation
+        raise Error::ValidationError("Final protocol was not validated")
+      end
+
+      puts "Protocol version: #{protocol.version_string}"
+
+      protocol.freeze
+    end # self.declare_protocol
+
+    # Add a new message to the given @a protocol. Will also recursively add to the protocol every message used in a field of the given message.
+    # @param [String] msg_name name of the message to add
+    # @param [Protogen::Models::Protocol] protocol the protocol to which this message will be added (will be modified)
+    # @param [Hash<String, Object>] messages definition of all messages
+    # @return the updated protocol
+    # @raise Protogen::Error::ProtocolDefinitionError
+    def self.declare_message(msg_name, protocol, messages)
+      if protocol.has_message?(msg_name) || BASIC_TYPES.include?(msg_name)
+        return protocol
+      end
+      puts "Declaring #{msg_name}..."
+      unless messages.has_key?(msg_name)
+        raise Error::ProtocolDefinitionError.new("Unknown message type: '#{msg_name}' (if you actually defined this type, be sure that you have no circular dependency ie A.b is of type B and B.a if of type A).")
+      end
+      msg_def = messages[msg_name]
+      msg = Models::Message.new({way: way_string_to_symbol(msg_def['_way']), docstring: msg_def['_docstring'], name: msg_name})
+      fields = msg_def.select { |key, value| key.match(/^[a-z]/) }
+      fields.each do |field_name, field_def|
+        type = field_def['type']
+        # Make sure the required type is declared
+        unless protocol.has_message?(type) || BASIC_TYPES.include?(type)
+          # To avoid infinite recursion, we remove the current message from the list of possible messages.
+          # Doing so will raise an error if there is a cycle in the message type dependency graph.
+          messages_copy = messages.clone
+          messages_copy.delete(msg_name)
+          declare_message(type, protocol, messages_copy)
+        end
+        params = {required: field_def['modifier'] == 'required', docstring: field_def["docstring"], name: field_name}
+        if BASIC_TYPES.include?(type)
+          params[:type] = type
+        else
+          params[:type] = protocol.get_message(type) # we know that the message has been declared earlier
+        end
+        if msg_def['array'] == true
+          field = Models::ArrayField.new(params)
+        else
+          field = Models::Field.new(params)
+        end
+        msg.add_field(field)
+      end
+      protocol.add_message(msg)
+      protocol
+    end
+
+    # Add a new shot to the given @a protocol.
+    # Will also recursively add to the sequence every shot defined as a "next_shot", and will take care of not going into infinite recursion if ShotA has ShotB as next shot and ShotB has ShotA as next shot (for instance).
+    # A well-formed sequence declaration should need to call this method with only the first shot and all the shots will be declared.
+    # @param [String] shot_name name of the shot to add (should be the first shot in the sequence)
+    # @param [ProtocolGenerator::Models::Sequence] sequence the sequence to which this shot will be added (will be modified)
+    # @param [Hash<String, Object>] shots definition of all shots
+    # @param [ProtocolGenerator::Models::Protocol] the protocol used (messages used in the sequence must have been declared in this protocol)
+    # @param shot_id: the id to assign to this shot
+    # @return the updated sequence (to make sure all shots have been correctly declared, consider comparing the number of shots in this sequence ot the expected number of shots)
+    # @raise Protogen::Error::SequenceError
+    def self.declare_shot(shot_name, sequence, shots, protocol)
+      unless shots.has_key?(shot_name)
+        # The given shot is not in the list. This is not an error if the shot has already been declared,
+        # because we delete a declared shot from the "shots" parameter before the recursive call.
+        if sequence.has_shot?(shot_name)
+          return sequence
+        else
+          raise ArgumentError.new("The shot #{shot_name} is not declared in sequence #{sequence.name}")
+        end
+      end
+      puts "Declaring shot #{shot_name}..."
+      if shots[shot_name].has_key?('next_shots')
+        shots_copy = shots.clone
+        next_shots = shots_copy[shot_name]['next_shots']
+        shots_copy.delete(shot_name) # mark the shot as declared ("visited" in a graph) by deleting it
+        next_shots.each_with_index do |next_shot, i|
+          declare_shot(next_shot, sequence, shots_copy, protocol)
+        end
+      end
+      # At this point we know that all of our "next_shots" have been declared.
+      shot_def = shots[shot_name]
+      message_type = protocol.get_message(shot_def['message_type'])
+      if message_type.nil?
+        raise Error::SequenceError.new("In sequence #{sequence.name}, shot #{shot_name}: message type #{shot_def['message_type']} is not defined.")
+      end
+      params = {name: shot_name, way: way_string_to_symbol(shot_def['way']), message_type: message_type, received_callback: shot_def['received_callback']}
+      next_shots = []
+      if shot_def.has_key?('next_shots')
+        shot_def['next_shots'].each do |next_shot|
+          next_shots << sequence.shot(:name, next_shot)
+        end
+      end
+      params[:next_shots] = next_shots
+      shot = Models::Shot.new(params)
+      sequence.add_shot(shot)
+    end
+
+    def self.way_string_to_symbol(way)
+      case way
+      when "toDevice"
+        return :to_device
+      when "toServer"
+        return :to_server
+      when "none"
+        return :none
+      else
+        raise Error::ProtocolDefinitionError.new("Unknow message way: #{way}")
+      end
+    end
+
+    # Read, validate and merge the default conf and the config conf.
+    # @return [Hash<String, Object] the result of merging the default conf and the config conf.
+    def self.read_config(default_config_path, config_path)
+      # Default config
+      unless File.exist?(default_config_path)
+        raise Error::ConfigurationFileError.new("Can not find the default configuration file at #{default_config_path}")
       end
       begin
-        default_conf = JSON.parse(File.open(default_conf_file).read)['default']
+        hash_config = JSON.parse(File.open(default_config_path).read)['default']
       rescue JSON::ParserError => e
-        raise Error::ConfigurationFileError.new("Error when JSON-parsing the default configuration file at #{default_conf_file}: #{e.message}")
+        raise Error::ConfigurationFileError.new("Error when JSON-parsing the default configuration file at #{default_config_path}: #{e.message}")
       end
-      Env.merge!(default_conf)
 
-      unless File.exist?(Env['conf_file_path'])
-        raise Error::ConfigurationFileError.new("Can not find configuration file at #{Env['conf_file_path']}")
+      # User config
+      unless File.exist?(config_path)
+        raise Error::ConfigurationFileError.new("Can not find configuration file at #{config_path}")
       end
-      conf_file = File.open(Env['conf_file_path'])
 
       begin
-        configuration = JSON.parse(conf_file.read)
+         hash_config.merge!(JSON.parse(File.open(config_path).read))
       rescue JSON::ParserError => e
-        raise Error::ConfigurationFileError.new("Error when JSON-parsing the configuration file at #{Env['conf_file_path']}: #{e.message}")
+        raise Error::ConfigurationFileError.new("Error when JSON-parsing the configuration file at #{config_path}: #{e.message}")
       end
 
       # Configuration validation
-      if configuration['server_output_directory']
-        validation_errors = JSON::Validator.fully_validate(SERVER_CONF_SCHEMA, configuration, :validate_schema => true)
-        if validation_errors.size > 0
-          raise ConfigurationFileError.new("The configuration file do not follow the correct schema: #{SERVER_CONF_SCHEMA.inspect}. Errors: #{validation_errors.inspect}.")
-        end
-      elsif configuration['device_output_directory']
-        validation_errors = JSON::Validator.fully_validate(DEVICE_CONF_SCHEMA, configuration, :validate_schema => true)
-        if validation_errors.size > 0
-          raise ConfigurationFileError.new("The configuration file do not follow the correct schema: #{DEVICE_CONF_SCHEMA.inspect}. Errors: #{validation_errors.inspect}.")
-        end
-      else
-        raise Error::ConfigurationFileError.new("No output directory was given (set the 'server_output_directory' or 'device_output_directory' key in the configuration file)")
+      unless hash_config.has_key?('server_output_directory') || hash_config.has_key?('device_output_directory')
+        raise ConfigurationFileError.new("The configuration file must specify either the key 'server_output_directory' or 'device_output_directory'.")
       end
-      Env.merge!(configuration)
+      if hash_config['server_output_directory']
+        validation_errors = JSON::Validator.fully_validate(Schema::SERVER_CONF, hash_config, :validate_schema => true)
+        if validation_errors.size > 0
+          raise ConfigurationFileError.new("The configuration file does not follow the correct schema: #{SERVER_CONF.inspect}. Errors: #{validation_errors.inspect}.")
+        end
+      end
+      if hash_config['device_output_directory']
+        validation_errors = JSON::Validator.fully_validate(Schema::DEVICE_CONF, hash_config, :validate_schema => true)
+        if validation_errors.size > 0
+          raise ConfigurationFileError.new("The configuration file does not follow the correct schema: #{DEVICE_CONF.inspect}. Errors: #{validation_errors.inspect}.")
+        end
+      end
+
       use_protobuf, use_msgpack = false,false
-      Env['plugins'].each do |plugin_name|
+      hash_config['plugins'].each do |plugin_name|
         if /protobuf/.match(plugin_name)
           puts "Will use protobuf because of plugin #{plugin_name}"
           use_protobuf = true
         end
         if /msgpack/.match(plugin_name)
           puts "Will use protobuf because of plugin #{plugin_name}"
+          use_msgpack = true
         end
       end
       if use_protobuf && use_msgpack
         Error::PluginError.new('Conflict: two plugins found using msgpack and protobuf. You can use only one or the other.')
       elsif use_protobuf
-        Env['ser_lang'] = 'protobuf'
-        validation_errors = JSON::Validator.fully_validate(PROTOBUF_CONF_SCHEMA, configuration, :validate_schema => true)
+        validation_errors = JSON::Validator.fully_validate(Schema::PROTOBUF_CONF, configuration, :validate_schema => true)
         if validation_errors.size > 0
-          raise ConfigurationFileError.new("The configuration file do not follow the correct Protobuf schema: #{PROTOBUF_CONF_SCHEMA.inspect}")
+          raise ConfigurationFileError.new("The configuration file do not follow the correct Protobuf schema: #{PROTOBUF_CONF.inspect}")
         end
       elsif use_msgpack
-        Env['ser_lang'] = 'msgpack'
-        validation_errors = JSON::Validator.fully_validate(MSGPACK_CONF_SCHEMA, configuration, :validate_schema => true)
+        validation_errors = JSON::Validator.fully_validate(Schema::MSGPACK_CONF, configuration, :validate_schema => true)
         if validation_errors.size > 0
-          raise ConfigurationFileError.new("The configuration file do not follow the correct msgpack schema: #{PROTOBUF_CONF_SCHEMA.inspect}. Errors: #{validation_errors.inspect}.")
+          raise ConfigurationFileError.new("The configuration file do not follow the correct msgpack schema: #{PROTOBUF_CONF.inspect}. Errors: #{validation_errors.inspect}.")
         end
       end
 
-      puts "Reading protocol definition file"
-      unless File.exist?(Env['input_path'])
-        raise Error::ProtocolFileNotFound.new("Can not find protocol definition file at #{Env['input_path']}")
+      hash_config
+    end
+
+    # Read, parse and validate a protocol_file.
+    # @return [Hash] the result of JSON-parsing the protocol file
+    def self.read_protocol_file(protocol_file_path)
+       unless File.exist?(protocol_file_path)
+        raise Error::ProtocolFileNotFound.new("Can not find protocol definition file at #{protocol_file_path}")
       end
-      if File.zero?(Env['input_path'])
-        raise Error::ProtocolFileEmpty.new("Found empty protocol definition file at #{Env['input_path']}")
+      if File.zero?(protocol_file_path)
+        raise Error::ProtocolFileEmpty.new("Found empty protocol definition file at #{protocol_file_path}")
       end
 
       begin
-        input = JSON.parse(File.open(Env['input_path']).read)
+        input = JSON.parse(File.open(protocol_file_path).read)
       rescue JSON::ParserError => e
-        raise Error::ProtocolFileParserError.new("Error when JSON-parsing the protocol definition file at #{Env['input_path']}: #{e.message}")
+        raise Error::ProtocolFileParserError.new("Error when JSON-parsing the protocol definition file at #{protocol_file_path}: #{e.message}")
       end
 
       # General validation
-      validation_errors = JSON::Validator.fully_validate(GENERAL_SCHEMA, input, :validate_schema => true)
+      validation_errors = JSON::Validator.fully_validate(Schema::GENERAL, input, :validate_schema => true)
       if validation_errors.size > 0
         raise Error::ProtocolDefinitionError.new("General schema validation failed, check your input file. Errors: #{validation_errors.inspect}.")
       end
 
-      # Messages
-      puts "Building the environment (messages and types)..."
-      Env['messages'] = input['messages']
-      puts "Found messages #{Env['messages'].keys.inspect}"
-      declared_messages = []
-      Env['fields'] = {}
-      Env['sendable_messages'] = {'from_server' => [], 'from_device' => []}
-      id = 0
-      Env['messages'].each do |msg_name, msg_content|
-        fields = []
-        msg_content['_id'] = id
-        id += 1
-        msg_content.each do |field_name, field_content|
-          next if /^[a-z]/.match(field_name).nil?
-          raise Error::ProtocolDefinitionError.new("Unknown message type: '#{field_content['type']}' (in field '#{field_name}' of message '#{msg_name}')") unless [BASIC_TYPES, 'msgpack', declared_messages].flatten.include?(field_content['type'])
-          fields << field_name
-        end
-        raise Error::ProtocolDefinitionError.new("Type declared more than once: '#{msg_name}'.") if [BASIC_TYPES, 'msgpack', declared_messages].flatten.include?(msg_name)
-        declared_messages << msg_name
-        Env['fields'][msg_name] = fields
-        if msg_content['_way'] == 'toDevice' || msg_content['_way'] == 'both'
-          Env['sendable_messages']['from_server'] << msg_name
-        end
-        if msg_content['_way'] == 'toServer' || msg_content['_way'] == 'both'
-          Env['sendable_messages']['from_device'] << msg_name
-        end
-      end # Env['messages'].each do |msg_name, msg_content|
-
-      Env['declared_types'] = declared_messages
-      puts "Declared types: #{Env['declared_types']}"
-      puts "Sendable messages: #{Env['sendable_messages']}"
-      puts "Fields of each message: #{Env['fields'].inspect}"
-      puts "Parsed messages: #{Env['messages'].inspect}"
-
-      # Cookies
-      puts "Building the environment (cookies)..."
-      Env['cookies'] = input['cookies']
-      Env['use_cookies'] = !Env['cookies'].nil? && !Env['cookies'].empty?
-      if Env['use_cookies']
-        puts "Creating cookies"
-        Env['cookie_names']=Env['cookies'].keys
-        Env['cookies'].each do |cookie_name, cookie_content|
-          fields = []
-          cookie_content.each do |field_name, field_content|
-            next if /^[a-z]/.match(field_name).nil?
-            raise Error::ProtocolDefinitionError.new("Unknown type: '#{field_content['type']}' (in cookie '#{cookie_name}')") unless (BASIC_TYPES.include?(field_content['type'])) # || declared_types.include?(field_content['type']))
-            fields << field_name
-          end
-          Env['fields'][cookie_name] = fields
-        end
-        puts "Fields of each message, including cookies: #{Env['fields'].inspect}"
-        puts "Cookies: #{Env['cookie_names'].inspect}"
-      else
-        puts "No cookies declared, will not use cookies"
-      end
-
-
-      # Sequences
-      Env['sequences'] = input['sequences']
-      messages = Env['messages']
-      Env['callbacks'] = {}
-      seq_id = 0
-
-      Env['sequences'].each do |sequence_name, sequence_definition|
-        sequence_definition['id'] = seq_id
-        seq_id += 1
-
-        # validation
-        shots = sequence_definition['shots']
-        raise Error::SequenceError.new("Sequence #{sequence_name}: first shot #{sequence_definition['first_shot']} is not declared.") unless shots.has_key?(sequence_definition['first_shot'])
-        id = 0
-        shots.each do |shot, shot_definition|
-          case shot_definition['way']
-          when 'toServer'
-            unless Env['sendable_messages']['from_device'].include?(shot_definition['message_type'])
-              raise Error::SequenceError.new("Sequence #{sequence_name} shot #{shot}: message type #{shot_definition['message_type']} in undefined or not sendable from the device")
-            end
-          when 'toDevice'
-            unless Env['sendable_messages']['from_server'].include?(shot_definition['message_type'])
-              raise Error::SequenceError.new("Sequence #{sequence_name} shot #{shot}: message type #{shot_definition['message_type']} in undefined or not sendable from the server")
-            end
-          else
-            raise Error::SequenceError.new("Sequence #{sequence_name} shot #{shot}: way must be either 'toDevice' or 'toServer'")
-          end
-
-          if shot_definition.has_key?('next_shots')
-            registered_types = []
-            shot_definition['next_shots'].each do |next_shot|
-              raise Error::SequenceError.new("Sequence #{sequence_name} shot #{shot}: next shot #{next_shot} is not defined.") unless shots.has_key?(next_shot)
-              if registered_types.include?(shots[next_shot]['message_type'])
-                raise Error::SequenceError.new("Sequence #{sequence_name} shot #{shot}: some of the defined next_shots have the same message type.")
-              end
-              registered_types << shots[next_shot]['message_type']
-              raise Error::SequenceError.new("Sequence #{sequence_name} shot #{shot} must have different 'way' property than its next shot #{next_shot}") unless shots[next_shot]['way'] != shot_definition['way']
-            end
-          end
-
-          # compute shot id (id order does not matter, it just have to be the same on device and server)
-          shot_definition['id'] = id
-          id += 1
-        end
-
-      end
-
-
-      Env['protocol_version'] = compute_version_string
-      puts "Protocol version: #{Env['protocol_version']}"
-    end
-
-    def self.compute_version_string
-      # todo rewrite that
-      # Marshaled copies of the hashes, just to be sure there are no modified values in the original hash
-      messages_copy = Marshal.load( Marshal.dump(Env['messages']) )
-      cookies_copy = Marshal.load( Marshal.dump(Env['cookies']) )
-
-      messages_v = {}
-      # Order of message declarations matters, so we don't sort the keys
-      messages_copy.keys.each do |msg_name|
-        messages_v[msg_name] = {}
-        # Order of field declarations does not matter, so we sort the fields alphabetically
-        messages_copy[msg_name].keys.sort.each do |field|
-          next unless ( /^[a-z]/.match(field) || ['_way'].include?(field)) # we only keep pertinent fields (no description or callback names)
-          field_content = {}
-          if(/^[a-z]/.match(field))
-            # Again, order of the field  options does not matter, we sort
-            messages_copy[msg_name][field].keys.sort.each do |field_opt|
-              next unless ['type', 'modifier', 'array'].include?(field_opt)
-              field_content[field_opt] = messages_copy[msg_name][field][field_opt]
-            end
-          else
-            field_content = messages_copy[msg_name][field]
-          end
-          messages_v[msg_name][field] = field_content
-        end
-      end
-
-      cookies_v = {}
-      # Order stuff for cookies is the same than for messages
-      cookies_copy.keys.each do |cookie_name|
-        cookies_v[cookie_name] = {}
-        cookies_copy[cookie_name].keys.sort.each do |field|
-          next unless ( /^[a-z]/.match(field) || ['_send_with', '_secure', '_validity_time'].include?(field))
-          field_content = {}
-          if(/^[a-z]/.match(field))
-            cookies_copy[cookie_name][field].keys.sort.each do |field_opt|
-              next unless ['type', 'modifier', 'array'].include?(field_opt)
-              field_content[field_opt] = cookies_copy[cookie_name][field][field_opt]
-            end
-          else
-            field_content = cookies_copy[cookie_name][field]
-          end
-          cookies_v[cookie_name][field] = field_content
-        end
-      end
-      "\"#{Digest::SHA1.hexdigest(messages_v.to_s+cookies_v.to_s)[-6..-1]}\""
+      input
     end
 
   end

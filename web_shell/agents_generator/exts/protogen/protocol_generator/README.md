@@ -43,8 +43,7 @@ This files will decribe how the code will be generated. It can either be written
       "java_outer_classname":"MDIMessages", /* the name of the main generated class. DO NOT CHANGE THIS FOR NOW as you will likely break something. */
       "keep_java_source":false, /* whether the source files are included in the release (they will be copied in the output folder.*/
       "keep_java_jar":true, /* whether the jar is included in the release */
-      "mdi_framework_jar":"/home/guillaume/sdk/MDI-SDK-3.0.14-rc1-linux-x86_64/plugins/com.mdi.project.fw_3.0.13.20121016153400/mdi-framework-3.X/simulator/mdi-framework-3.X.jar", /* path to the mdi framework. Used only when compiling java during code generation and to override default framework in config.*/
-      "check_protocol_version":"yes" /* optional. If set to yes, the generated code will check that the device and the server use the same protocol file and raise an error if not. */
+      "mdi_framework_jar":"/home/guillaume/sdk/MDI-SDK-3.0.14-rc1-linux-x86_64/plugins/com.mdi.project.fw_3.0.13.20121016153400/mdi-framework-3.X/simulator/mdi-framework-3.X.jar" /* path to the mdi framework. Used only when compiling java during code generation and to override default framework in config.*/
     }
 
 ### Server configuration file

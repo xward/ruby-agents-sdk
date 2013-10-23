@@ -29,7 +29,7 @@ module ProtocolGenerator
       # @param [String] name the name of a basic type
       # @return [BasicType] the corresponding, frozen, basic type object
       def self.get_basic_type(name)
-        unless BASIC_TYPES.include?(name) # defined in parser.rb
+        unless BASIC_TYPES.include?(name) # defined in schema.rb
           raise ArgumentError.new("Invalid basic type: #{name}")
         end
         @@basic_type ||= {}
@@ -44,7 +44,7 @@ module ProtocolGenerator
         if new_name.nil?
           raise ArgumentError.new("Invalid basic type: nil is not an acceptable type")
         end
-        unless BASIC_TYPES.include?(new_name) # defined in parser.rb
+        unless BASIC_TYPES.include?(new_name) # defined in schema.rb
           raise ArgumentError.new("Invalid basic type: #{new_name}")
         end
         @name = new_name

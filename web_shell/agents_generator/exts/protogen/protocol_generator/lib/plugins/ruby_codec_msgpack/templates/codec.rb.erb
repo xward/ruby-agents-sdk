@@ -1,20 +1,23 @@
 ### Do not edit
 require 'msgpack'
 
-module Protogen_<%= Env['agent_name'] %>
+module Protogen_<%= protocol_set.config.get(:ruby, :agent_name) %>
 
   module Protogen
 
     # Exception raised by the Codec in case of an invalid message input
     # @see Codec
     # @api private
-    class UnknownMessageType < Exception
+    class UnknownMessageType < ProtogenError
     end
 
     # Exception raised by the Codec when there is a mismatch between of the protocol version of the server and the device
     # @see Codec
     # @api private
-    class InvalidProtocolVersion < Exception
+    class InvalidProtocolVersion < ProtogenError
+    end
+
+    class MessageSizeTooBig < ProtogenError
     end
 
     # object returned by the Codec when a big message was split on the device, and there are still missing pieces on the server
@@ -27,54 +30,60 @@ module Protogen_<%= Env['agent_name'] %>
   # @api private
   module Codec
 
-
-    PROTOCOL_VERSION = <%= Env['protocol_version'] %>
-    PG_VERSION = "<%= ::ProtocolGenerator.version %>"
+    PG_VERSION = "<%= protocol_set.config.get(:global, :pg_version) %>"
 
     def self.encode(object, cookies, asset, validity_length=Array.new(cookies.size))
 
-      msg_hash = {'v' => PROTOCOL_VERSION }
+      protocol_version = VersionStringParser.protocol_version(object.protogen_meta_data['protogen_version_string'])
+      msg_hash = {'v' => object.protogen_meta_data['protogen_version_string'] }
 
-      msg_hash['type'] = case object <% Env['declared_types'].each do |type| next unless Env['sendable_messages']['from_server'].include?(type) %>
-      when Messages::<%= type %> then Messages::ID_<%= type.upcase %> <% end %>
-      when ProtogenMessages::ServerError then ProtogenMessages::ID_SERVER_ERROR
-      else
-        raise UnknownMessageType, "The following object is not sendable: #{object.class}."
-      end
+      case protocol_version
+      <%- protocol_set.protocols.each do |protocol| -%>
+      when <%= protocol.protocol_version %>
+        msg_hash['type'] = case object <% protocol.messages(:sendable_from, :server).each do |msg| %>
+        when V<%= protocol.protocol_version %>::Messages::<%= msg.name %> then V<%= protocol.protocol_version %>::Messages::ID_<%= msg.name.upcase %> <% end %>
+        when ProtogenMessages::ServerError then ProtogenMessages::ID_SERVER_ERROR
+        else
+          raise UnknownMessageType, "The following object is not sendable: #{object.class}."
+        end
 
-      msg_hash['msg'] = object.to_hash
-      <% if Env['use_cookies'] %>
-      unless cookies.nil?
-        cookies.each_with_index do |cookie,i|
-          vl_i = validity_length[i] || cookie.class.validity_time # validity_length must contain an integer or nil for default value
-          passwd_i = CookiePasswdMgr.get_passwd(cookie.class, vl_i, 10)
+        msg_hash['msg'] = object.to_hash
+        <% if protocol.has_cookies? %>
+        unless cookies.nil?
+          cookies.each_with_index do |cookie,i|
+            vl_i = validity_length[i] || cookie.class.validity_time # validity_length must contain an integer or nil for default value
+            passwd_i = CookiePasswdMgr.get_passwd(cookie.class, vl_i, 10)
 
-          case cookie<% Env['cookie_names'].each do |cookie_name| %>
-          when Cookies::<%= cookie_name %> then msg_hash['_<%= cookie_name %>'] = CookieMgr.encrypt(cookie.to_hash.to_json,passwd_i,asset,vl_i) <% end %>
+            case cookie<% protocol.cookies.each do |cookie| %>
+            when Cookies::<%= cookie.name %> then msg_hash['_<%= cookie.name %>'] = CookieMgr.encrypt(cookie.to_hash.to_json,passwd_i,asset,vl_i) <% end %>
+            end
           end
         end
-      end
-      <% end %>
+        <% end %>
 
-      enc_msg = msg_hash.to_msgpack
-      raise 'OverMessageSizeLimit' if enc_msg.size > <%= Env['message_size_limit'] %>
-      if enc_msg.size > <%= Env['message_part_size'] %>
-        sha1_hash, parts = Splitter.split(enc_msg, <%= Env['message_part_size'] %>)
-        if parts.size > 1
-          output = []
-          parts.each_with_index do |part, i|
-            output << {'m' => part, 'h' => sha1_hash, 'f' => i, 't' => parts.size}.to_msgpack
+        enc_msg = msg_hash.to_msgpack
+        raise MessageSizeTooBig.new("Max message size is <%= protocol_set.config.get(:global, :max_message_size) %> bytes, impossible to send a message of #{enc_msg.size} bytes.") if enc_msg.size > <%= protocol_set.config.get(:global, :max_message_size) %>
+        if enc_msg.size > <%= protocol_set.config.get(:global, :message_part_size) %>
+          sha1_hash, parts = Splitter.split(enc_msg, <%= protocol_set.config.get(:global, :message_part_size) %>)
+          if parts.size > 1
+            output = []
+            parts.each_with_index do |part, i|
+              output << {'m' => part, 'h' => sha1_hash, 'f' => i, 't' => parts.size}.to_msgpack
+            end
+            output
+          else
+            [enc_msg]
           end
-          output
         else
           [enc_msg]
         end
+      <%- end -%>
       else
-        [enc_msg]
+        raise "Protogen: Unknown version #{protocol_version}, available are <%= protocol_set.protocols.map{|protocol| protocol.protocol_version}.join(",") %>"
       end
     end
 
-    def self.decode(msg, asset<%if !Env['use_cookies']%>=nil<%end%>)
+    def self.decode(msg, asset = nil)
       msg_hash = MessagePack.unpack(msg)
 
       unless msg_hash['h'].nil? # if this is only part of a message
@@ -91,28 +100,54 @@ module Protogen_<%= Env['agent_name'] %>
         end
       end
 
-      <% if Env['check_protocol_version'] == 'yes' %>
-        if msg_hash['v'] != PROTOCOL_VERSION
-          raise InvalidProtocolVersion, "Protocol message version: #{msg_hash['v']}, protocol server version: #{PROTOCOL_VERSION}"
-        end
-      <% end %>
-
-      obj = case msg_hash['type'] <% Env['declared_types'].each do |type| next unless Env['sendable_messages']['from_device'].include?(type) %>
-      when Messages::ID_<%= type.upcase %> then Messages::<%= type %>.from_hash(msg_hash['msg']) <% end %>
-      else
-        raise UnknownMessageType, "The following object type is not decodable: #{msg_hash['type']}."
+      message_version = msg_hash['v']
+      # Check that the given version string is supported by the server
+      unless ["<%= protocol_set.protocols.map{|proto| proto.version_string}.join(",") %>"].include? message_version
+        raise InvalidProtocolVersion.new("No protocol match incoming message version string #{message_version}")
       end
-      cookies = []
-      <% if Env['use_cookies'] %>
-      passwd_list = CookiePasswdMgr.get_all_passwd(msg_hash['type'])
-      <% Env['cookie_names'].each do |cookie_name| %>
-      cookie = msg_hash['_<%= cookie_name %>']
-      valid = false
-      valid,raw_cookie = CookieMgr.decrypt(cookie[0],cookie[1],cookie[2],passwd_list,asset) unless cookie.nil?
-      cookies << Cookies::<%= cookie_name %>.from_hash(JSON.load(raw_cookie)) if valid
-      <% end %>
-      <% end %>
-      [obj, cookies]
+
+      protocol_version = VersionStringParser.protocol_version(message_version)
+      unless [<%= protocol_set.protocols.map{|proto| proto.protocol_version}.join(',') %>].include? protocol_version
+          raise InvalidProtocolVersion, "Protocol message version: #{protocol_version} is not one of the supported versions: <%= protocol_set.protocols.map{|proto| proto.protocol_version}.join(',') %>"
+      end
+      case protocol_version
+      <%- protocol_set.protocols.each do |protocol| -%>
+      when <%= protocol.protocol_version %>
+        case msg_hash['type']
+        <% protocol.messages(:receivable_from, :server).each do |msg| %>
+        when V<%= protocol.protocol_version %>::Messages::ID_<%= msg.name.upcase %> then obj = V<%= protocol.protocol_version %>::Messages::<%= msg.name %>.from_hash(msg_hash['msg']) <% end %>
+        else
+          raise UnknownMessageType, "The following object type is not decodable: #{msg_hash['type']}."
+        end
+        cookies = []
+        <% if protocol.has_cookies? %>
+        passwd_list = CookiePasswdMgr.get_all_passwd(msg_hash['type'])
+        <% protocol.cookies.each do |cookie| %>
+        cookie = msg_hash['_<%= cookie.name %>']
+        valid = false
+        valid,raw_cookie = CookieMgr.decrypt(cookie[0],cookie[1],cookie[2],passwd_list,asset) unless cookie.nil?
+        cookies << Cookies::<%= cookie.name %>.from_hash(JSON.load(raw_cookie)) if valid
+        <% end %>
+        <% end %>
+        return [obj, cookies]
+        <%- end -%>
+      else
+        raise InvalidProtocolVersion.new("No protocol match incoming message version #{protocol_version}")
+      end
+    end
+
+    module VersionStringParser
+
+      def self.protocol_version(version_string)
+        ary = version_string.split('-')
+        ary[0] = Integer(ary[0]) rescue nil
+        ary[1] = Integer(ary[0]) rescue nil
+        if ary.length != 3 || ary[0].nil? || ary[1].nil?
+          raise InvalidProtocolVersion("Incoming message version string #{version_string} is not correctly formatted.")
+        end
+        ary[1]
+      end
+
     end
 
   end

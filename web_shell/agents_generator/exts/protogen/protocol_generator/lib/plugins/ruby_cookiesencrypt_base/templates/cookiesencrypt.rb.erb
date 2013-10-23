@@ -1,7 +1,7 @@
 require 'openssl'
 require 'base64'
 
-module Protogen_<%= Env['agent_name'] %>
+module Protogen_<%= protocol_set.config.get(:ruby, :agent_name) %>
 
   module Protogen
 

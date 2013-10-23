@@ -1,8 +1,6 @@
 Protocol Generator developper documentation
 ===========================================
 
-(note: not really up-to-date)
-
 # Generated code organisation
 
 In order to ease the change of generated code features (especialy in the transition from msgpack to protobuf), the generated code is seperated in distinct blocks, which APIs are (as often as possible) not related to the technological solution chosen. For example, no redis reference in the CookieManager's APIs, no msgapck or protobuf reference in the Codec's APIs, etc.)
@@ -29,7 +27,12 @@ Also a priority for a plugin is defined. Indeed, one plugin might need to be cal
 
 Every piece of information is stored in Env "alias" for ProtocolGenerator::Environment.env, which is sort of a global hash. It is still kind of a mess, inside, but you will certainly find what you want.
 
+Refactoring is in progress to delete this Env object.
 
+# Removed plugins
+
+Some plugins (especially the ones related to Protobuf) were not used and have not been updated in a while. They have been removed from the current Protogen version because they are currently broken, so the project is kept clean.
+You can still find them in the git history of the project should you ever need to reactivate them.
 
 # How messages are formated
 

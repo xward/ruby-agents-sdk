@@ -1,8 +1,4 @@
-<% Dir.foreach(File.join(Env['output_directory'], 'server', 'ruby')) do |file|
-  next unless /.rb$/.match(file) %>
-require_relative '<%= file %>'<% end %>
-
-module Protogen_<%= Env['agent_name'] %>
+module Protogen_<%= protocol_set.config.get(:ruby, :agent_name) %>
 
   module ProtogenAPIs
 
@@ -13,8 +9,8 @@ module Protogen_<%= Env['agent_name'] %>
     #   message object.
     # @return [String] Encoded protogen object
     def self.encode(message)
-      Protogen::Splitter.init(Sdk_api_<%= Env['agent_name'] %>::SDK::API.redis_internal)
-      Protogen::CookiePasswdMgr.init(Sdk_api_<%= Env['agent_name'] %>::SDK::API.redis_internal)
+      Protogen::Splitter.init(Sdk_api_<%= protocol_set.config.get(:ruby, :agent_name) %>::SDK::API.redis_internal)
+      Protogen::CookiePasswdMgr.init(Sdk_api_<%= protocol_set.config.get(:ruby, :agent_name) %>::SDK::API.redis_internal)
       cookies = message.meta['protogen_cookies'] || []
       Protogen::Codec.encode(message.content, cookies, message.asset)
     end
@@ -29,8 +25,8 @@ module Protogen_<%= Env['agent_name'] %>
     #   correspond to any protogen message
     # @return [Protogen::Message::MessageClass, Protogen::Cookies]
     def self.decode(message, id = "")
-      Protogen::Splitter.init(Sdk_api_<%= Env['agent_name'] %>::SDK::API.redis_internal(id))
-      Protogen::CookiePasswdMgr.init(Sdk_api_<%= Env['agent_name'] %>::SDK::API.redis_internal)
+      Protogen::Splitter.init(Sdk_api_<%= protocol_set.config.get(:ruby, :agent_name) %>::SDK::API.redis_internal(id))
+      Protogen::CookiePasswdMgr.init(Sdk_api_<%= protocol_set.config.get(:ruby, :agent_name) %>::SDK::API.redis_internal)
       Protogen::Codec.decode(message.content, message.asset)
     end
 
@@ -47,4 +43,16 @@ module Protogen_<%= Env['agent_name'] %>
 
   end
 
+  module Protogen
+
+     # Base class for all errors raised by Protogen generated code.
+    class ProtogenError < StandardError
+    end
+
+  end
+
 end
+
+<% Dir.foreach(protocol_set.config.get(:ruby, :temp_output_path)) do |file|
+  next unless /.rb$/.match(file) %>
+require_relative '<%= file %>'<% end %>
