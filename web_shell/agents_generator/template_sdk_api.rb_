@@ -79,7 +79,7 @@ module Sdk_api_XX_DOWNCASED_CLEAN_PROJECT_NAME
       # @return [Redis] a namespaced Redis instance
       def self.redis_internal(id = "")
         @@redis_internal ||= {}
-        @@redis_internal[id] ||= Redis::Namespace.new('CCSI:XX_PROJECT_NAME_#{id}', :redis => CC.redis)
+        @@redis_internal[id] ||= Redis::Namespace.new("CCSI:XX_PROJECT_NAME_#{id}", :redis => CC.redis)
       end
 
       ############### Config ###############################################
