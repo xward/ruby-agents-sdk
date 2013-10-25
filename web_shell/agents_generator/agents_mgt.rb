@@ -62,14 +62,10 @@ module AgentsGenerator
 
         PUNK.start('a')
 
-        if !(File.exist?("#{workspace_path}/#{agent}/config/protogen.json"))
-          CC.logger.info("Agent '#{agent}' protogen.json file not found. Skip.")
-          next
-        end
-
-        ptc = File.read("#{workspace_path}/#{agent}/config/protogen.json")
-        if ptc == ""
-          CC.logger.info("Agent '#{agent}' protogen.json empty. Skip.")
+        protocol_files = Dir.glob("#{workspace_path}/#{agent}/config/*.protogen").reject{|file| File.directory?(file)}.map{|file| "#{workspace_path}/#{agent}/config/#{File.basename(file)}"}
+        if protocol_files.size == 0
+          CC.logger.info("Agent '#{agent}': no protogen files found in 'config' directory. Skip.")
+          PUNK.end('a','ok','',"SERVER no Protogen for agent #{agent}")
           next
         end
 
@@ -91,7 +87,7 @@ module AgentsGenerator
         CC.logger.debug("protogen bundle install:\n #{output}\n\n")
 
         # run protogen generation
-        command = "cd #{protogen_bin_path}; bundle exec ruby protogen.rb #{workspace_path}/#{agent}/config/protogen.json /tmp/protogen_conf.json"
+        command = "cd #{protogen_bin_path}; bundle exec ruby protogen.rb #{protocol_files.join(" ")} /tmp/protogen_conf.json"
         CC.logger.debug "running command #{command} :"
         output = `#{command} 2>&1`
 
