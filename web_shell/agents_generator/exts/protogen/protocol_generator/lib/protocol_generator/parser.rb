@@ -52,7 +52,7 @@ module ProtocolGenerator
 
       protocol = Models::Protocol.new
 
-      puts "Reading the protocol definition file at #{protocol_path}..."
+      puts "\n\nReading the protocol definition file at #{protocol_path}...\n"
       input = read_protocol_file(protocol_path)
 
       protocol.protogen_version = input["protogen_version"]

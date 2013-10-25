@@ -38,6 +38,10 @@ module ProtocolGenerator
         @fields.values
       end
 
+      def security_level
+        @security_level
+      end
+
       def security_level=(level)
         if level != :high && level != :low && level != :none
           raise Error::CookieError.new("Cookie security level can only be :high, :low, or :none, got #{level}")

@@ -91,6 +91,10 @@ module ProtocolGenerator
         @messages[msg_name]
       end
 
+      def get_cookie(cookie_name)
+        @cookies[cookie_name]
+      end
+
       # Return messages meeting a given criteria
       # If no argument is give, returns all messages.
       # @example Messages that the device can send to the server
@@ -246,14 +250,26 @@ module ProtocolGenerator
           out_string << msg.name
           out_string << msg.way.to_s
           out_string << "fields"
-          msg.fields.sort.each do |field|
-            field = msg.get_field(field.name)
+          msg.fields.sort_by{|field| field.name}.each do |field|
             out_string << field.name
             out_string << field.required?.to_s
             if field.basic_type?
               out_string << field.type.name
             else
               out_string << field.type.name
+            end
+          end
+        end
+        if has_cookies?
+          out_string << "cookies"
+          @cookies.keys.sort.each do |cookie_name|
+            cookie = get_cookie(cookie_name)
+            out_string << cookie.name
+            out_string << cookie.security_level.to_s
+            out_string << cookie.send_with.map{|message| message.name}.join("")
+            cookie.fields.sort_by{|field| field.name}.each do |field|
+              out_string << field.name
+              out_string << field.required?.to_s
             end
           end
         end
@@ -274,7 +290,7 @@ module ProtocolGenerator
           end
         end
         out_string << @protocol_version << @protocol_version.to_s
-        @version_string = @protogen_version.to_s + "-" + @protocol_version.to_s + "-" + Digest::SHA1.base64digest(out_string)
+        @version_string = @protogen_version.to_s + "-" + @protocol_version.to_s + "-" + Digest::SHA1.base64digest(out_string)[0..8] # reduce the version string size by cutting the end - this will increase the probability of a collision but will reduce the exchanged message size, which is great.
       end
 
     end
