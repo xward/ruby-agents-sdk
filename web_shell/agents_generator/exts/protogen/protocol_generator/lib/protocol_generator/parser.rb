@@ -28,8 +28,8 @@ module ProtocolGenerator
         set :java, :output_directory, hash_config['device_output_directory']
         set :ruby, :agent_name, hash_config['agent_name']
         set :ruby, :user_callbacks_directory, hash_config['user_callbacks']
-        set :global, :max_message_size, hash_config['message_size_limit']
-        set :global, :message_part_size, hash_config['message_part_size']
+        set :ruby, :max_message_size, hash_config['message_size_limit']
+        set :ruby, :message_part_size, hash_config['message_part_size']
         set :java, :output_path, hash_config['device_output_directory']
         set :ruby, :output_path, hash_config['server_output_directory']
         set :java, :temp_output_path, File.join(params['temp_output_directory'], "device")
@@ -39,6 +39,9 @@ module ProtocolGenerator
         set :java, :keep_source, hash_config['keep_java_source']
         set :global, :plugins, hash_config['plugins']
         set :global, :pg_version, hash_config['pg_version']
+        set :java, :max_message_size, hash_config['device_message_size_limit']
+        set :java, :message_part_expiration_duration, hash_config['device_message_part_expiration_duration'] # in seconds
+        set :ruby, :message_part_expiration_duration, hash_config['server_message_part_expiration_duration']
       end
 
       params['protocol_path'].each do |protocol_path|
@@ -78,7 +81,7 @@ module ProtocolGenerator
           else
             secure = cookie_def['_secure'].to_sym
           end
-          cookie = Models::Cookie.new({docstring: cookie_def['description'], name: cookie_name, validity_period: cookie_def['_validity_time'], security_level: secure})
+          cookie = Models::Cookie.new({docstring: cookie_def['docstring'], name: cookie_name, validity_period: cookie_def['_validity_time'], security_level: secure})
           send_with = cookie_def['_send_with'].each do |msg_name|
             msg = protocol.get_message(msg_name)
             if msg == nil
@@ -102,7 +105,7 @@ module ProtocolGenerator
       puts "Building sequences..."
       input['sequences'].each do |seq_name, seq_def|
         puts "Declaring sequence #{seq_name}"
-        seq = Models::Sequence.new({name: seq_name, aborted_callback: seq_def['aborted_callback']})
+        seq = Models::Sequence.new({name: seq_name, aborted_callback: seq_def['aborted_callback'], docstring: seq_def["docstring"]})
         declare_shot(seq_def['first_shot'], seq, seq_def['shots'], protocol)
         seq.first_shot = seq.shot(:name, seq_def['first_shot'])
         protocol.add_sequence(seq)
@@ -171,11 +174,12 @@ module ProtocolGenerator
     # Will also recursively add to the sequence every shot defined as a "next_shot", and will take care of not going into infinite recursion if ShotA has ShotB as next shot and ShotB has ShotA as next shot (for instance).
     # A well-formed sequence declaration should need to call this method with only the first shot and all the shots will be declared.
     # @param [String] shot_name name of the shot to add (should be the first shot in the sequence)
-    # @param [ProtocolGenerator::Models::Sequence] sequence the sequence to which this shot will be added (will be modified)
+    # @param [ProtocolGenerator::Models::Sequence] sequence the sequence to which this shot will be added (will be modified).
+    #     This method assumes the attribute "name" of the sequence is already set.
     # @param [Hash<String, Object>] shots definition of all shots
     # @param [ProtocolGenerator::Models::Protocol] the protocol used (messages used in the sequence must have been declared in this protocol)
     # @param shot_id: the id to assign to this shot
-    # @return the updated sequence (to make sure all shots have been correctly declared, consider comparing the number of shots in this sequence ot the expected number of shots)
+    # @return the updated sequence (to make sure all shots have been correctly declared, consider comparing the number of shots in this sequence to the expected number of shots)
     # @raise Protogen::Error::SequenceError
     def self.declare_shot(shot_name, sequence, shots, protocol)
       unless shots.has_key?(shot_name)
@@ -207,6 +211,20 @@ module ProtocolGenerator
       if shot_def.has_key?('next_shots')
         shot_def['next_shots'].each do |next_shot|
           next_shots << sequence.shot(:name, next_shot)
+        end
+      end
+      if shot_def.has_key?('timeouts')
+        if shot_def['way'] == "toDevice"
+          raise Error::SequenceError.new("Protogen does not handle server-side timeouts (invalid attribute 'timeouts' in shot #{shot_name} sequence #{sequence.name})")
+        end
+        if shot_def['timeouts'].has_key?('send')
+          params[:send_timeout] =  shot_def['timeouts']['send']
+        end
+        if shot_def['timeouts'].has_key?('receive')
+          unless shot_def.has_key?('next_shots')
+            raise Error::SequenceError.new("Can not define a response timeout for a shot that does not expect a reply (invalid attribute 'receive' in timeouts defined for the shot #{shot_name} sequence #{sequence.name})")
+            end
+          params[:receive_timeout] = shot_def['timeouts']['receive']
         end
       end
       params[:next_shots] = next_shots
@@ -253,18 +271,18 @@ module ProtocolGenerator
 
       # Configuration validation
       unless hash_config.has_key?('server_output_directory') || hash_config.has_key?('device_output_directory')
-        raise ConfigurationFileError.new("The configuration file must specify either the key 'server_output_directory' or 'device_output_directory'.")
+        raise Error::ConfigurationFileError.new("The configuration file must specify either the key 'server_output_directory' or 'device_output_directory'.")
       end
       if hash_config['server_output_directory']
         validation_errors = JSON::Validator.fully_validate(Schema::SERVER_CONF, hash_config, :validate_schema => true)
         if validation_errors.size > 0
-          raise ConfigurationFileError.new("The configuration file does not follow the correct schema: #{SERVER_CONF.inspect}. Errors: #{validation_errors.inspect}.")
+          raise Error::ConfigurationFileError.new("The configuration file does not follow the correct schema: Errors: #{validation_errors.inspect}.")
         end
       end
       if hash_config['device_output_directory']
         validation_errors = JSON::Validator.fully_validate(Schema::DEVICE_CONF, hash_config, :validate_schema => true)
         if validation_errors.size > 0
-          raise ConfigurationFileError.new("The configuration file does not follow the correct schema: #{DEVICE_CONF.inspect}. Errors: #{validation_errors.inspect}.")
+          raise Error::ConfigurationFileError.new("The configuration file does not follow the correct schema. Errors: #{validation_errors.inspect}.")
         end
       end
 
@@ -284,12 +302,12 @@ module ProtocolGenerator
       elsif use_protobuf
         validation_errors = JSON::Validator.fully_validate(Schema::PROTOBUF_CONF, configuration, :validate_schema => true)
         if validation_errors.size > 0
-          raise ConfigurationFileError.new("The configuration file do not follow the correct Protobuf schema: #{PROTOBUF_CONF.inspect}")
+          raise Error::ConfigurationFileError.new("The configuration file do not follow the correct Protobuf schema: #{PROTOBUF_CONF.inspect}")
         end
       elsif use_msgpack
         validation_errors = JSON::Validator.fully_validate(Schema::MSGPACK_CONF, configuration, :validate_schema => true)
         if validation_errors.size > 0
-          raise ConfigurationFileError.new("The configuration file do not follow the correct msgpack schema: #{PROTOBUF_CONF.inspect}. Errors: #{validation_errors.inspect}.")
+          raise Error::ConfigurationFileError.new("The configuration file do not follow the correct msgpack schema: #{PROTOBUF_CONF.inspect}. Errors: #{validation_errors.inspect}.")
         end
       end
 

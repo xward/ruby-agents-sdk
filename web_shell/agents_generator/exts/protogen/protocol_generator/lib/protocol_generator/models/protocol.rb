@@ -174,7 +174,7 @@ module ProtocolGenerator
         @sequences[seq_name]
       end
 
-      # Compute unique ids wfor each sequence in the protocol
+      # Compute unique ids for each sequence in the protocol
       # The order of these ids is arbitrary
       def compute_sequences_id
         @sequences.values.each_with_index do |seq, i|
@@ -253,11 +253,8 @@ module ProtocolGenerator
           msg.fields.sort_by{|field| field.name}.each do |field|
             out_string << field.name
             out_string << field.required?.to_s
-            if field.basic_type?
-              out_string << field.type.name
-            else
-              out_string << field.type.name
-            end
+            out_string << field.array?.to_s
+            out_string << field.type.name
           end
         end
         if has_cookies?
@@ -284,9 +281,8 @@ module ProtocolGenerator
             out_string << shot.name
             out_string << shot.next_shots.map{ |shot| shot.name }.join("")
             out_string << shot.message_type.name
-            out_string << shot.callback(:received_callback)
+            out_string << shot.defined_callbacks.map{|cb| cb.to_s}.join("")
             out_string << shot.way.to_s
-            # todo(faucon_b): add other callbacks
           end
         end
         out_string << @protocol_version << @protocol_version.to_s

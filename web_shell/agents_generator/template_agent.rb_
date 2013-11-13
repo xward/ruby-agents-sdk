@@ -91,9 +91,8 @@ class Agent_XX_CLEAN_PROJECT_NAME
         if is_agent_has_protogen
           begin
             # protogen decode
-            msg, cookies = ProtogenAPIs.decode(message)
+            msg = ProtogenAPIs.decode(message)
             message.content = msg
-            message.meta['protogen_cookies'] = cookies
             msg_type = msg.class
 
             is_protogen = true
@@ -124,7 +123,7 @@ class Agent_XX_CLEAN_PROJECT_NAME
       PUNK.start('handle', 'handling message ...')
       if is_protogen
         CC.logger.info("Server: new protogen message of imei='#{message.asset}' to agent 'XX_PROJECT_NAME': #{message.content} ---------------------")
-        ProtogenAPIs.process(self, message)
+        ProtogenAPIs.process(message)
       else
 
         CC.logger.debug("Server: new standard message  of imei='#{message.asset}' to agent 'XX_PROJECT_NAME' ---------------------")

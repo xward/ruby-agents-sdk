@@ -4,7 +4,7 @@ module ProtocolGenerator
 
     class Sequence
 
-      attr_accessor :name, :id
+      attr_accessor :name, :id, :docstring
 
       # todo(faucon_b): check that shots are valid (id uniqueness)
       def initialize(params = {})
@@ -14,6 +14,7 @@ module ProtocolGenerator
         @callbacks[:aborted_callback] = params[:aborted_callback] if params[:aborted_callback]
         @first_shot = params[:first_shot]
         @shots = params[:shots] || {}
+        @docstring = params[:docstring]
         unless shots.nil? || @shofirst_shot.nil?
           unless @shots.include?(@first_shot)
             raise ArgumentError.new("Sequence #{name} first shot is not in the declared list of shots.")

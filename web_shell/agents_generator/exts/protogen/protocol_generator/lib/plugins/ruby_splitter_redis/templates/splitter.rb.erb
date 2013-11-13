@@ -23,14 +23,15 @@ module Protogen_<%= protocol_set.config.get(:ruby, :agent_name) %>
     #
     # @param [String] message the serialized message
     # @param [Fixnum] length_limit in bytes
-    # @return [message SHA1 (String), array of message parts (Array(String))]
+    # @return [message SHA1 (String), array of message parts (Array(String)), unique content id (Fixnum)]
     def self.split(message, length_limit)
-      hash = Digest::SHA1.base64digest message
+      string_id = ((Integer(Time.now.to_f * 1000) % 1000000).to_s + Random.rand(1000).to_s)
+      hash = Digest::SHA1.base64digest(message + string_id)
       parts = []
       (message.bytesize/length_limit+1).times do |i|
         parts << message.byteslice((i*length_limit)..((i+1)*length_limit-1))
       end
-      [hash, parts]
+      [hash, parts, string_id.to_i]
     end
 
     # Assembles message parts to retrieve original message, and checks its
@@ -63,7 +64,9 @@ module Protogen_<%= protocol_set.config.get(:ruby, :agent_name) %>
       @@redis.hgetall("message_#{asset}_#{sha1_hash}")
     end
 
-    # Add a message part in redis
+    # Add a message part in redis.
+    # If no other parts of the same message are stored within one week,
+    # all parts of the same message will expire, to prevent Redis from being cluttered with incomplete messages.
     #
     # @param [String] message the message part content
     # @param [String] sha1_hash SHA1 of the final message
@@ -71,6 +74,7 @@ module Protogen_<%= protocol_set.config.get(:ruby, :agent_name) %>
     # @param [String] asset asset of the device that sent this big message
     def self.put(message, sha1_hash, part_num, asset)
       @@redis.hset("message_#{asset}_#{sha1_hash}", part_num, message)
+      @@redis.expire("message_#{asset}_#{sha1_hash}", <%= protocol_set.config.get(:ruby, :message_part_expiration_duration) %>)
     end
   end
 

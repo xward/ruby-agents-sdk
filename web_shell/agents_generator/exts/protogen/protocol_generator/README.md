@@ -23,8 +23,11 @@ If you want to generate and compile the device-side Java code, you will need a J
 
 (deactivated) You will also need doxygen installed, if you wish to have documentation aside from generated code.
 
+## Compatibility information
+
 Protogen generated device code has been tested with version 3.2.6 of the core (revision D3.2.6-87-gc72c37e, dpn "Deployment_MP6_light") and is probably incompatible with earlier versions.
 
+Server code has been tested with the version v0.2.4-rc204 of the server SDK VM (this version can handle only one protocol file. A small update to make the server SDK accept several protocol files is needed for this version), and is probably compatible with earlier versions as well given small adaptations to the Protogen configuration file used by the server SDK.
 
 ## Usage
 
@@ -78,9 +81,33 @@ The file `doc/protogen_for_the_user.md` explains how a developer can use the Pro
 
 ## Known issues
 
+* As of core version 3.2.6, the `MessageGateHelper` defined by the core and used by Protogen can call the callback `onTimeout()` even if the `onReplyComplete()` callback is called.
+For the Protogen user, this means that the Protogen callback "timeout_callback" can be called in parallel with the callback "received_callback".
+It can occurs if the timeout expires during the processing in `onReplyComplete()` or just before the conversation is marked as terminated.
+This was considered as a bug in the `MessageGateHelper`, so Protogen has no fix around this problem.
+
 * When generating device code, Protogen will exit with status 0 (success) even if the compilation of the generated Java code failed. Protogen will output the result of the compilation, check that the compilation was successful. Note that if there are no bugs in Protogen, the compilation should never fail. But in the real life...
 
-* Protogen will split large message send by the server and reassemble them on the device. However, it will not split the messages sent by the device.
+* Protogen sometimes throws a `NullPointerException` when handling large messages
+
+```
+2013/11/12 17:06.30  EventDispatcher::EventListenerExec::run: unexpected error java.lang.NullPointerException
+2013/11/12 17:06.30  java.lang.NullPointerException
+2013/11/12 17:06.30   at java.io.OutputStream.write(OutputStream.java:82)
+2013/11/12 17:06.30   at com.test.sequences.Splitter.assemble(Splitter.java:81)
+2013/11/12 17:06.30   at com.test.sequences.Splitter.assemble(Splitter.java:70)
+2013/11/12 17:06.30   at com.test.sequences.Codec.decode(Codec.java:95)
+2013/11/12 17:06.30   at com.test.sequences.Sequences$SimpleQuestionToServer$FirstShotForSimpleQuestionToServer.onReply(Sequences.java:468)
+2013/11/12 17:06.30   at com.mdi.tools.helpers.messagegate.Query.getReply(Query.java:278)
+2013/11/12 17:06.30   at com.mdi.tools.helpers.messagegate.MessageGateHelper.treatMessageReception(MessageGateHelper.java:631)
+2013/11/12 17:06.30   at com.mdi.tools.helpers.messagegate.MessageGateHelper.dispatchEvent(MessageGateHelper.java:593)
+2013/11/12 17:06.30   at com.mdi.tools.events.EventDispatcher$EventListenerExec.run(EventDispatcher.java:56)
+2013/11/12 17:06.30   at com.mdi.tools.events.EventDispatcher$EventListenerContainer.process(EventDispatcher.java:103)
+2013/11/12 17:06.30   at com.mdi.tools.events.EventDispatcher.notifyListener(EventDispatcher.java:574)
+2013/11/12 17:06.30   at com.mdi.tools.events.EventDispatcher.run(EventDispatcher.java:618)
+```
+
+If you know how to reproduce this exception, please report it, as for now it is not known how to reproduce the error.
 
 Also note that the cookie feature has not been thoroughly tested.
 

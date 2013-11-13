@@ -110,7 +110,7 @@ module CloudConnectServices
   end
 
   # A class that represents a standard message. Used in the DeviceGate and CloudGate APIs for instance.
-  class Message < Struct.new(:id, :parent_id, :thread_id, :asset, :sender, :recipient, :type, :recorded_at, :received_at, :channel,:account, :meta, :content, :cookies)
+  class Message < Struct.new(:id, :parent_id, :thread_id, :asset, :sender, :recipient, :type, :recorded_at, :received_at, :channel,:account, :meta, :content)
 
     # ---
     # Message Source
@@ -183,10 +183,6 @@ module CloudConnectServices
     #   @api public
     #   @return the ID of the parent message if this message is a response to another message.
 
-    # @!attribute [rw] cookies
-    #   @api public
-    #   @return Protogen cookies (may be `nil`)
-
     # @!attribute [rw] content
     #   @api public
     #   @return content of the message. Can be a Protogen object, or a regular String.
@@ -249,7 +245,6 @@ module CloudConnectServices
 
         if meta.is_a? Hash
           self.account = meta['account']
-          self.cookies = meta['protogen_cookies']
         end
 
         if self.type != 'message' && self.type != 'ack'

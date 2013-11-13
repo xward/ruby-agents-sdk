@@ -32,7 +32,7 @@ module Protogen_<%= protocol_set.config.get(:ruby, :agent_name) %>
 
     PG_VERSION = "<%= protocol_set.config.get(:global, :pg_version) %>"
 
-    def self.encode(object, cookies, asset, validity_length=Array.new(cookies.size))
+    def self.encode(object, asset, validity_length=nil)
 
       protocol_version = VersionStringParser.protocol_version(object.protogen_meta_data['protogen_version_string'])
       msg_hash = {'v' => object.protogen_meta_data['protogen_version_string'] }
@@ -49,7 +49,12 @@ module Protogen_<%= protocol_set.config.get(:ruby, :agent_name) %>
 
         msg_hash['msg'] = object.to_hash
         <%- if protocol.has_cookies? -%>
+        cookies = nil
+        cookies = object.cookies if object.respond_to?(:cookies)
         unless cookies.nil?
+          if validity_length.nil?
+            validity_length = Array.new(cookies.size)
+          end
           cookies.each_with_index do |cookie,i|
             vl_i = validity_length[i] || cookie.class.validity_time # validity_length must contain an integer or nil for default value
             passwd_i = CookiePasswdMgr.get_passwd(cookie.class, vl_i, 10)
@@ -64,13 +69,13 @@ module Protogen_<%= protocol_set.config.get(:ruby, :agent_name) %>
         <%- end -%>
 
         enc_msg = msg_hash.to_msgpack
-        raise MessageSizeTooBig.new("Max message size is <%= protocol_set.config.get(:global, :max_message_size) %> bytes, impossible to send a message of #{enc_msg.size} bytes.") if enc_msg.size > <%= protocol_set.config.get(:global, :max_message_size) %>
-        if enc_msg.size > <%= protocol_set.config.get(:global, :message_part_size) %>
-          sha1_hash, parts = Splitter.split(enc_msg, <%= protocol_set.config.get(:global, :message_part_size) %>)
+        raise MessageSizeTooBig.new("Max message size is <%= protocol_set.config.get(:ruby, :max_message_size) %> bytes, impossible to send a message of #{enc_msg.size} bytes.") if enc_msg.size > <%= protocol_set.config.get(:ruby, :max_message_size) %>
+        if enc_msg.size > <%= protocol_set.config.get(:ruby, :message_part_size) %>
+          sha1_hash, parts, id = Splitter.split(enc_msg, <%= protocol_set.config.get(:ruby, :message_part_size) %>)
           if parts.size > 1
             output = []
             parts.each_with_index do |part, i|
-              output << {'m' => part, 'h' => sha1_hash, 'f' => i, 't' => parts.size}.to_msgpack
+              output << {'m' => part, 'h' => sha1_hash, 'f' => i, 't' => parts.size, 'i' => id}.to_msgpack
             end
             output
           else
@@ -81,7 +86,7 @@ module Protogen_<%= protocol_set.config.get(:ruby, :agent_name) %>
         end
       <%- end -%>
       else
-        raise "Protogen: Unknown version #{protocol_version}, available are <%= protocol_set.protocols.map{|protocol| protocol.protocol_version}.join(",") %>"
+        raise InvalidProtocolVersion.new("Protogen: Unknown version #{protocol_version}, available are <%= protocol_set.protocols.map{|protocol| protocol.protocol_version}.join(",") %>")
       end
     end
 
@@ -98,7 +103,7 @@ module Protogen_<%= protocol_set.config.get(:ruby, :agent_name) %>
         else
           Splitter.put(msg_hash['m'], msg_hash['h'], msg_hash['f'], asset)
           # still missing parts -> nothing else to excecute
-          return [MessagePartNotice.new,nil]
+          return MessagePartNotice.new
         end
       end
 
@@ -138,10 +143,11 @@ module Protogen_<%= protocol_set.config.get(:ruby, :agent_name) %>
         end
         <%- end -%>
         <%- end -%>
-        return [obj, cookies]
+        obj.cookies = cookies
+        return obj
         <%- end -%>
       else
-        raise InvalidProtocolVersion.new("No protocol match incoming message version #{protocol_version}")
+        raise InvalidProtocolVersion.new("No protocol matches incoming message version #{protocol_version}")
       end
     end
 

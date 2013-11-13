@@ -7,8 +7,7 @@ module ProtocolGenerator
       'bool' => 'boolean',
       'float' => 'float',
       'bytes' => 'byte[]',
-      'string' => 'String',
-      'msgpack' => 'Value'
+      'string' => 'String'
   }.freeze
 
   MSGPACK2RUBY = {
@@ -17,10 +16,15 @@ module ProtocolGenerator
       'bool' => 'Boolean', # No bool in ruby... currently MSGPACK2RUBY is used only in docstrings so that's not a problem
       'float' => 'Float',
       'bytes' => 'bytes',
-      'string' => 'String',
-      'msgpack' => 'Object'
-
+      'string' => 'String'
   }.freeze
+
+  DEFAULT_TIMEOUT = {
+    send: 60,
+    receive: 60
+  }
+
+  AVAILABLE_CALLBACKS = [:received_callback, :ack_timeout_callback, :cancel_callback, :response_timeout_callback, :send_timeout_callback, :server_nack_callback, :send_success_callback]
 
   module Schema
 
@@ -30,8 +34,9 @@ module ProtocolGenerator
       "properties" => {
         "plugins" => {'type' => 'array', 'required' => true},
         "agent_name" => {'type' => 'string', 'required' => true},
-        "message_size_limit" => {'type' => 'int', 'required' => false},
-        "message_part_size" => {'type' => 'int', 'required' => false}
+        "message_size_limit" => {'type' => 'int', 'required' => true},
+        "message_part_size" => {'type' => 'int', 'required' => true},
+        "server_message_part_expiration_duration" => {'type' => 'int', 'required' => true}
       }
     }.freeze
 
@@ -45,8 +50,8 @@ module ProtocolGenerator
         "keep_java_source" => {'type' => 'bool', 'required' => false},
         "keep_java_jar" => {'type' => 'bool', 'required' => false},
         "agent_name" => {'type' => 'string', 'required' => true},
-        "message_size_limit" => {'type' => 'int', 'required' => false},
-        "message_part_size" => {'type' => 'int', 'required' => false}
+        "device_message_size_limit" => {'type' => 'int', 'required' => true},
+        "device_message_part_expiration_duration" => {'type' => 'int', 'required' => true}
       }
     }.freeze
 
@@ -81,17 +86,7 @@ module ProtocolGenerator
           'type' => 'object',
           'properties' => {
             '_description' => {'type' => 'string', 'required' => false},
-            '_way' => {'type' => 'string', 'enum' => ['toServer', 'toDevice', 'both', 'none'], 'required' => true},
-            '_server_callback' => {'type' => 'string', 'required' => false},
-            '_device_callback' => { 'type' => 'string', 'required' => false},
-            '_timeout_calls' => {'type' => 'Array', 'required' => false}, # ["send", "ack"]
-            '_timeouts' => {
-              'type' => 'object',
-              'required' => false,
-              'properties' => {
-                'send' => {'type' => 'int', 'required' => false},
-              }
-            }
+            '_way' => {'type' => 'string', 'enum' => ['toServer', 'toDevice', 'both', 'none'], 'required' => true}
           },
           "patternProperties" => {
             "^[a-z]" => FIELD
@@ -128,7 +123,15 @@ module ProtocolGenerator
           "properties" => {
             "way" => {"type" => "string", "required" => true, "enum" => ['toDevice', 'toServer']},
             "message_type" => {"type" => "string", "required" => true},
-            "next_shots" => {"type" => "Array", "items" => { "type" => "string"}}
+            "next_shots" => {"type" => "Array", "items" => { "type" => "string"}},
+            "timeouts" => {
+              "type" => "object",
+              "required" => false,
+              "properties" => {
+                "send" => {"type" => "int", "required" => false},
+                "receive" => {"type" => "int", "required" => false}
+              }
+            }
           }
         }
       }
