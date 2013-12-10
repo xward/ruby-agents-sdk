@@ -269,7 +269,7 @@ module AgentsGenerator
   ## agent mgt
 
   #return true if success
-  def create_new_agent(name)
+  def create_new_agent(name, package_name = "com.example")
 
     #todo filter name character, only letter and '_'
     name.gsub!(' ', '_')
@@ -299,6 +299,13 @@ module AgentsGenerator
 
     # Match and replace name project stuff in content
     match_and_replace_in_folder(project_path,"XXProjectName",name)
+
+    # Update protogen template file
+    template =  File.read("#{project_path}/config/template.protogen")
+    template.gsub!("@PROJECTNAME@", "#{name}_protocol")
+    template.gsub!("@PACKAGE@", package_name)
+
+    File.open("#{project_path}/config/template.protogen", 'w') { |file| file.write(template) }
 
     return true
   end
