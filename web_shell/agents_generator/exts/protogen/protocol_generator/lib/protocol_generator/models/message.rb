@@ -6,7 +6,8 @@ module ProtocolGenerator
 
     class Message < Type
 
-      attr_accessor :docstring, :name, :id
+      attr_accessor :docstring, :id
+      attr_reader :name
 
       def initialize(params = {})
         self.way = params[:way] || :none
@@ -18,7 +19,7 @@ module ProtocolGenerator
         else
          @fields = {}
         end
-        @name = params[:name]
+        self.name = params[:name]
       end
 
       # @return `true` is the field name was already defined for this message, false otherwise
@@ -58,6 +59,14 @@ module ProtocolGenerator
 
       def basic_type?
         false
+      end
+
+      def name=(new_name)
+        if new_name.match(/^[A-Z]/)
+          @name = new_name
+        else
+          raise Error::ProtocolDefinitionError.new("The name of a message must begin with an uppercase letter, got #{new_name}.")
+        end
       end
 
     end

@@ -109,7 +109,7 @@ module Protogen_<%= protocol_set.config.get(:ruby, :agent_name) %>
             shot = Shot.new(<%= shot.id %>, Protogen::V<%= protocol.protocol_version %>::Messages::<%= shot.message_type.name %>, '<%= shot.way %>', [])
             <%- end
                if shot.way == :to_server -%>
-            shot.received_callback = Proc.new {|message| <%= protocol.name %>::V<%=protocol.protocol_version%>::<%= seq.name %>::<%= shot.callback(:received_callback) %>(message)}
+            shot.received_callback = Proc.new {|message| <%= Helpers::Ruby.protocol_module_name(protocol) %>::V<%=protocol.protocol_version%>::<%= seq.name %>::<%= shot.callback(:received_callback) %>(message)}
             <%- end -%>
             shots << shot
             <%- end -%>

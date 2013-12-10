@@ -4,7 +4,8 @@ module ProtocolGenerator
 
     class Cookie
 
-      attr_accessor :docstring, :name, :send_with, :validity_period, :id # in seconds
+      attr_accessor :docstring, :send_with, :validity_period, :id # in seconds
+      attr_reader :name
 
       def initialize(params = {})
         @docstring = params[:docstring]
@@ -15,7 +16,7 @@ module ProtocolGenerator
         else
          @fields = {}
         end
-        @name = params[:name]
+        self.name = params[:name]
         @send_with = params[:send_with] || []
         @validity_period = params[:validity_period]
       end
@@ -40,6 +41,14 @@ module ProtocolGenerator
 
       def security_level
         @security_level
+      end
+
+      def name=(new_name)
+        if new_name.match(/^[A-Z]/)
+          @name = new_name
+        else
+          raise Error::ProtocolDefinitionError.new("The name of a cookie must begin with an uppercase letter, got #{new_name}.")
+        end
       end
 
       def security_level=(level)

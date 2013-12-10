@@ -13,6 +13,8 @@ require 'protocol_generator/parser'
 require 'protocol_generator/generators'
 require 'protocol_generator/errors'
 
+Dir[File.dirname(__FILE__) + '/lib/protocol_generator/helpers/*.rb'].each {|file| require file }
+
 module ProtocolGenerator
 
   def self.version

@@ -11,6 +11,7 @@ module ProtocolGenerator
     class Protocol
 
       attr_accessor :protocol_version, :protogen_version, :name
+      attr_reader :package
 
       def initialize(params = {})
         @messages = params[:messages] || {}
@@ -21,6 +22,16 @@ module ProtocolGenerator
         @callbacks = {}
         @callbacks[:generic_error_callback] = params[:generic_error_callback]
         @version_string = nil
+        self.package = params[:package] if params[:package]
+      end
+
+      # Allowed names are Java-style package names with only lowercase letters (numbers and underscores are also accepted)
+      def package=(new_package)
+        if new_package.match(/^([a-z_][a-z0-9_]*(\.[a-z_][a-z0-9_]*)*)$/)
+          @package = new_package
+        else
+          raise ArgumentError.new("Only Java-style package names that use lowercase letters are allowed (you can also use underscores and numbers but it is discouraged). Example of a valid package name: com.mycompany.example")
+        end
       end
 
       # @params [ProtocolGenerator::Models::Message] msg a message to add to hsi protocol

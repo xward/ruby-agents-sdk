@@ -73,6 +73,7 @@ This file describe how the code will be generated. It can either be written by t
       "agent_name":"ProtogenAgentTest",
       "server_output_directory":"sdk_defined_directory",
       "user_callbacks":"sdk_defined_directory" /* protogen will look for user-defined callbacks in this directory */
+      "generate_ruby_documentation": false /* whether to invoke YARD to generate documentation for the Ruby generated code */
     }
 
 ## Use the Protogen-generated code ###

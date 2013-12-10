@@ -52,14 +52,18 @@ module Protogen_<%= protocol_set.config.get(:ruby, :agent_name) %>
           # Cookies associated with this message.
           attr_accessor :cookies
 
-          def initialize<% msg.fields.each do |field| %>
+          def initialize(params = {})<% msg.fields.each do |field| %>
             @<%= field.name %> = <%= ( field.array? ? '[]' : 'nil' ) %><% end %>
             @protogen_meta_data = {}
             @protogen_meta_data['protogen_version_string'] = "<%= protocol.version_string %>"
             @cookies = nil
+            <%- msg.fields.each do |field| -%>
+            self.<%= field.name %> = params[:<%= field.name %>] if params.has_key?(:<%= field.name %>)
+            <%- end -%>
           end
 
           # Setters
+
           <% msg.fields.each do |field| %>
           def <%= field.name %>=(new_value)
             <%- case field.type
@@ -175,17 +179,10 @@ module Protogen_<%= protocol_set.config.get(:ruby, :agent_name) %>
             <%= cookie.validity_period || '3600' %>
           end
 
-          def initialize(<%= cookie.fields.map{|f| "#{f.name}"}.join(', ') %>)<% cookie.fields.each do |field| %>
-            @<%= field.name %> = <%=
-            case field.type
-            when Models::BasicType
-              "#{field.name}"
-            when *protocol.messages
-              raise "A cookie field can only be a basic type."
-            else
-              raise "Unknown type of field: #{field.type.name}"
-            end
-            %><% end %>
+          def initialize(params = {})
+            <%- cookie.fields.each do |field| -%>
+            self.<%= field.name %> = params[:<%= field.name %>] if params.has_key?(:<%= field.name %>)
+            <%- end -%>
           end
 
           def to_hash
@@ -204,7 +201,7 @@ module Protogen_<%= protocol_set.config.get(:ruby, :agent_name) %>
           end
 
           def self.from_hash in_hash
-            Cookies::<%= cookie.name %>.new(<%= cookie.fields.map{|field| "in_hash['#{field.name}']"}.join(', ')%>)
+            Cookies::<%= cookie.name %>.new(<%= cookie.fields.map{|field| "#{field.name}: in_hash['#{field.name}']"}.join(', ')%>)
           end
         end
       <% end %>

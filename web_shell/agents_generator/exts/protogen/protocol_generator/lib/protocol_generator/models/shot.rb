@@ -4,7 +4,7 @@ module ProtocolGenerator
 
     class Shot
 
-      attr_accessor :message_type, :name, :id
+      attr_accessor :message_type, :name, :id, :retry_policy
       attr_reader :next_shots
 
       def initialize(params = {})
@@ -13,7 +13,7 @@ module ProtocolGenerator
         @message_type = params[:message_type] # Models::Message
         @callbacks = {}
         AVAILABLE_CALLBACKS.each do |cb|
-          @callbacks[cb] = params[cb] if params[cb] # string
+          add_callback(cb, params[cb]) if params[cb] # string
         end
         @next_shots = params[:next_shots] || []
         @id = params[:id]
@@ -59,6 +59,20 @@ module ProtocolGenerator
         @callbacks.has_key?(cb)
       end
 
+      # @param [Symbol] cb callback type
+      # @params [String] cb_name name of the callback
+      def add_callback(cb, cb_name)
+        if AVAILABLE_CALLBACKS.include?(cb)
+          if(validate_callback_name(cb))
+            @callbacks[cb] = cb_name
+          else
+            raise Error::SequenceError.new("Invalid callback name: #{cb_name}")
+          end
+        else
+          raise Error::ProtogenError.new("Invalid callback: #{cb}, expected one of #{AVAILABLE_CALLBACKS.inspect}")
+        end
+      end
+
       # @param [Symbol] cb a callback
       # @return [String] the callback name (nil if no callback name was defined for this callback
       # @raise [Error::ProtogenError] if the @a cb parameter is not a callback that Protogen accepts.
@@ -70,9 +84,13 @@ module ProtocolGenerator
         end
       end
 
-      # @return [Array<Symbol] the list of the callbacks the user explicitely defined for this shot
+      # @return [Array<Symbol>] the list of the callbacks the user explicitely defined for this shot
       def defined_callbacks
         @callbacks.keys
+      end
+
+      def callbacks
+        @callbacks.values
       end
 
       # @param [Symbol] event :send or :receive (if applicatble)
@@ -90,6 +108,27 @@ module ProtocolGenerator
         else
           return DEFAULT_TIMEOUT[event] #defined in schema.rb
         end
+      end
+
+      # Check that the :recievd_callbacks is defined, and if the way is set to :toDevice, that no other
+      # callback is defined.
+      # @return [Boolean]
+      def validate_callbacks
+        if @way == :to_device
+          return @callbacks.has_key?(:received_callback) && @callbacks.size == 1
+        else
+          return @callbacks.has_key?(:received_callback)
+        end
+      end
+
+      def has_retry_policy?
+        !@retry_policy.nil?
+      end
+
+      private
+
+      def validate_callback_name(name)
+        name.match(/^[a-z]/)
       end
 
     end

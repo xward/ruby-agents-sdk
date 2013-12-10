@@ -24,7 +24,7 @@ module ProtocolGenerator
     receive: 60
   }
 
-  AVAILABLE_CALLBACKS = [:received_callback, :ack_timeout_callback, :cancel_callback, :response_timeout_callback, :send_timeout_callback, :server_nack_callback, :send_success_callback]
+  AVAILABLE_CALLBACKS = [:received_callback, :ack_timeout_callback, :cancel_callback, :response_timeout_callback, :send_timeout_callback, :server_nack_callback, :send_success_callback, :server_error_callback] # make sure to update the SHOTS schema too, and the Java controller (dispatcher plugin) if relevant
 
   module Schema
 
@@ -36,7 +36,8 @@ module ProtocolGenerator
         "agent_name" => {'type' => 'string', 'required' => true},
         "message_size_limit" => {'type' => 'int', 'required' => true},
         "message_part_size" => {'type' => 'int', 'required' => true},
-        "server_message_part_expiration_duration" => {'type' => 'int', 'required' => true}
+        "server_message_part_expiration_duration" => {'type' => 'int', 'required' => true},
+        "generate_ruby_documentation" => {'type' => 'boolean', 'required' => false}
       }
     }.freeze
 
@@ -45,7 +46,6 @@ module ProtocolGenerator
       'required' => true,
       "properties" => {
         "plugins" => {'type' => 'array', 'required' => true},
-        "java_package" => {'type' => 'string', 'required' => true},
         "mdi_framework_jar" => {'type' => 'string', 'required' => false},
         "keep_java_source" => {'type' => 'bool', 'required' => false},
         "keep_java_jar" => {'type' => 'bool', 'required' => false},
@@ -131,6 +131,22 @@ module ProtocolGenerator
                 "send" => {"type" => "int", "required" => false},
                 "receive" => {"type" => "int", "required" => false}
               }
+            },
+            "received_callback" => {"type" => "string", "required" => true},
+            "ack_timeout_callback" => {"type" => "string", "required" => false},
+            "cancel_callback" => {"type" => "string", "required" => false},
+            "response_timeout_callback" => {"type" => "string", "required" => false},
+            "send_timeout_callback" => {"type" => "string", "required" => false},
+            "server_nack_callback" => {"type" => "string", "required" => false},
+            "send_success_callback" => {"type" => "string", "required" => false},
+            "server_error_callback" => {"type" => "string", "required" => false},
+            "retry_policy" => {
+              "type" => "object",
+              "required" => false,
+              "properties" => {
+                "delay" => {"required" => true, "type"=>"int"},
+                "attempts" => {"required" => false, "type"=>"int"}
+              }
             }
           }
         }
@@ -160,7 +176,9 @@ module ProtocolGenerator
         "cookies" => COOKIES,
         "sequences" => SEQUENCES,
         "protocol_version" => {"type" => "int", "required" => true},
-        "protogen_version" => {"type" => "int", "required" => true, "enum" => [1]}
+        "protogen_version" => {"type" => "int", "required" => true, "enum" => [1]},
+        "generic_error_callback" => {"type" => "string", "required" => false},
+        "package" => {"type" => "string", "required" => true}
       }
     }.freeze
 

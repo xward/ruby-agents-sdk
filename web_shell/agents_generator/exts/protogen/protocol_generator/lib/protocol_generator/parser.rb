@@ -7,6 +7,7 @@ require_relative 'models/protocol'
 require_relative 'models/protocol_set'
 require_relative 'models/config'
 require_relative 'models/cookie'
+require_relative 'models/retry_policy'
 require_relative 'schema.rb'
 
 module ProtocolGenerator
@@ -24,7 +25,6 @@ module ProtocolGenerator
 
       protocol_set = Models::ProtocolSet.new
       protocol_set.config do
-        set :java, :package_name, hash_config['java_package']
         set :java, :output_directory, hash_config['device_output_directory']
         set :ruby, :agent_name, hash_config['agent_name']
         set :ruby, :user_callbacks_directory, hash_config['user_callbacks']
@@ -42,11 +42,14 @@ module ProtocolGenerator
         set :java, :max_message_size, hash_config['device_message_size_limit']
         set :java, :message_part_expiration_duration, hash_config['device_message_part_expiration_duration'] # in seconds
         set :ruby, :message_part_expiration_duration, hash_config['server_message_part_expiration_duration']
+        set :ruby, :generate_documentation, hash_config['generate_ruby_documentation']
       end
 
       params['protocol_path'].each do |protocol_path|
         protocol_set << declare_protocol(protocol_path)
       end
+
+      protocol_set.config.set(:java, :package_name, protocol_set.first.package) # todo: update all plugins so that java_package is no longer a configuration value
 
       protocol_set.freeze
     end
@@ -62,12 +65,13 @@ module ProtocolGenerator
       protocol.protocol_version = input["protocol_version"]
       protocol.name = input["name"]
       protocol.add_callback(:generic_error_callback, input["generic_error_callback"]) if input['generic_error_callback']
+      protocol.package = input["package"]
 
       # Messages
       puts "Building messages..."
       declared_types = []
       input['messages'].each do |msg_name, msg_def|
-        declare_message(msg_name, protocol, input['messages']) # recursive method, see its definition
+        declare_message(msg_name, protocol, input['messages'])
       end
 
       # Cookies
@@ -114,11 +118,11 @@ module ProtocolGenerator
       protocol.compute_ids
 
       puts "Final protocol validation..."
-      validation = protocol.validate
-      if validation.size > 0
+      validated, errors = protocol.validate
+      unless validated
         puts "Validation errors"
-        puts validation
-        raise Error::ValidationError("Final protocol was not validated")
+        puts errors.inspect
+        raise Error::ValidationError.new("Final protocol was not validated")
       end
 
       puts "Protocol version: #{protocol.version_string}"
@@ -141,7 +145,8 @@ module ProtocolGenerator
         raise Error::ProtocolDefinitionError.new("Unknown message type: '#{msg_name}' (if you actually defined this type, be sure that you have no circular dependency ie A.b is of type B and B.a if of type A).")
       end
       msg_def = messages[msg_name]
-      msg = Models::Message.new({way: way_string_to_symbol(msg_def['_way']), docstring: msg_def['_docstring'], name: msg_name})
+      msg = Models::Message.new(docstring: msg_def['_docstring'], name: msg_name)
+      msg.way = way_string_to_symbol(msg_def['_way'])
       fields = msg_def.select { |key, value| key.match(/^[a-z]/) }
       fields.each do |field_name, field_def|
         type = field_def['type']
@@ -178,7 +183,6 @@ module ProtocolGenerator
     #     This method assumes the attribute "name" of the sequence is already set.
     # @param [Hash<String, Object>] shots definition of all shots
     # @param [ProtocolGenerator::Models::Protocol] the protocol used (messages used in the sequence must have been declared in this protocol)
-    # @param shot_id: the id to assign to this shot
     # @return the updated sequence (to make sure all shots have been correctly declared, consider comparing the number of shots in this sequence to the expected number of shots)
     # @raise Protogen::Error::SequenceError
     def self.declare_shot(shot_name, sequence, shots, protocol)
@@ -206,7 +210,7 @@ module ProtocolGenerator
       if message_type.nil?
         raise Error::SequenceError.new("In sequence #{sequence.name}, shot #{shot_name}: message type #{shot_def['message_type']} is not defined.")
       end
-      params = {name: shot_name, way: way_string_to_symbol(shot_def['way']), message_type: message_type, received_callback: shot_def['received_callback']}
+      params = {name: shot_name, way: way_string_to_symbol(shot_def['way']), message_type: message_type}
       next_shots = []
       if shot_def.has_key?('next_shots')
         shot_def['next_shots'].each do |next_shot|
@@ -229,6 +233,16 @@ module ProtocolGenerator
       end
       params[:next_shots] = next_shots
       shot = Models::Shot.new(params)
+      AVAILABLE_CALLBACKS.each do |cb|
+        shot.add_callback(cb, shot_def[cb.to_s]) if shot_def.has_key?(cb.to_s)
+      end
+
+      # Retry policy
+      if shot_def.has_key?("retry_policy")
+        retry_policy = Models::RetryPolicy.new(:delay => shot_def["retry_policy"]["delay"], :attempts => shot_def["retry_policy"]["attempts"])
+        shot.retry_policy = retry_policy
+      end
+
       sequence.add_shot(shot)
     end
 
@@ -241,7 +255,7 @@ module ProtocolGenerator
       when "none"
         return :none
       else
-        raise Error::ProtocolDefinitionError.new("Unknow message way: #{way}")
+        raise Error::ProtocolDefinitionError.new("Unknown message way: #{way.inspect}")
       end
     end
 

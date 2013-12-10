@@ -1,11 +1,11 @@
-Protocol Generator developper documentation
-===========================================
+Protocol Generator developer documentation
+==========================================
 
 # Generated code organisation
 
-In order to ease the change of generated code features (especialy in the transition from msgpack to protobuf), the generated code is seperated in distinct blocks, which APIs are (as often as possible) not related to the technological solution chosen. For example, no redis reference in the CookieManager's APIs, no msgapck or protobuf reference in the Codec's APIs, etc.)
+In order to ease the change of generated code features (especially in the transition from msgpack to protobuf), the generated code is seperated in distinct blocks, which APIs are (as often as possible) not related to the technological solution chosen. For example, no redis reference in the CookieManager's APIs, no msgapck or protobuf reference in the Codec's APIs, etc.)
 
-Here is the interractions between all the blocks:
+Here is the interactions between all the blocks (not up-to-date):
 
 [Server code blocks](CodeBlocksServer.png)
 
@@ -18,16 +18,9 @@ We also tried to mark this independance in the protocol generator's code. Each b
 
 If you want to create your own plugin to replace one of the blocks, (make sure it complies with the previously defined APIs), you'll have to put it in the lib/plugins/ directory, and add it in the plugin list in the input configuration file. The plugin must have an init.rb file in the same format than the existing one (the plugin must inherit from GeneratorPlugin, you must call init (defined in GeneratorPlugin) at the end of the definition of your plugin.
 
-Though, we tried to keep the independance as much as we could, there is still a dependance between the codec and message plugins (protobuf codec obviously won't work with msgpack message). This is dealt with a dependancy relation between plugins. See ruby_codec_msgpack plugin for example. Should a plugin B, dependant on A, be called, A would be called first, even if it is not present in the configuration file.
+Although we tried to keep the independance as much as we could, there is still a dependance between the codec and message plugins (protobuf codec obviously won't work with msgpack message). This is dealt with a dependancy relation between plugins. See ruby_codec_msgpack plugin for example. Should a plugin B, dependant on A, be called, A would be called first, even if it is not present in the configuration file.
 
 Also a priority for a plugin is defined. Indeed, one plugin might need to be called before another one (to fill a environment variable used in the next). See ruby_messages_protobuf example. It is an integer (or a float, whatever can rightfuly be compared to an int ^^). Default priority is 0. Note that a dependancy plugin will be called before the dependant plugin, whatever its priority.
-
-
-# Accessing variables through the project
-
-Every piece of information is stored in Env "alias" for ProtocolGenerator::Environment.env, which is sort of a global hash. It is still kind of a mess, inside, but you will certainly find what you want.
-
-Refactoring is in progress to delete this Env object.
 
 # Removed plugins
 

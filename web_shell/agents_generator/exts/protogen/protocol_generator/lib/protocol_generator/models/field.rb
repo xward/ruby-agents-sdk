@@ -4,7 +4,8 @@ module ProtocolGenerator
 
     class Field
 
-      attr_accessor :required, :docstring, :name
+      attr_accessor :required, :docstring
+      attr_reader :name
 
       def initialize(params = {})
         self.type = params[:type] # if a string, it is a basic type. If not, it is a Models::Message
@@ -43,6 +44,14 @@ module ProtocolGenerator
 
       def basic_type?
         @type.basic_type?
+      end
+
+      def name=(new_name)
+        if new_names.match(/^[a-z]/)
+          @name = new_name
+        else
+          raise Error::ProtocolDefinitionError.new("The name of a field must begin with an uppercase letter, got #{new_name}.")
+        end
       end
 
     end
