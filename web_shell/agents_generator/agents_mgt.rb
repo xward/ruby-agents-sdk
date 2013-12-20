@@ -302,7 +302,7 @@ module AgentsGenerator
 
     # Update protogen template file
     template =  File.read("#{project_path}/config/template.protogen")
-    template.gsub!("@PROJECTNAME@", "#{name}_protocol")
+    template.gsub!("@PROJECTNAME@", "#{name.capitalize}_protocol")
     template.gsub!("@PACKAGE@", package_name)
 
     File.open("#{project_path}/config/template.protogen", 'w') { |file| file.write(template) }
